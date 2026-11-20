@@ -1,0 +1,68 @@
+# Implementation Tasks & Execution Checklist
+
+Coding agents must execute these phases sequentially. Mark each item `[x]` only after its verification step passes.
+
+---
+
+## Phase 1: Backend Foundation, Async DB, & Order Ingestion
+- [x] **Task 1.1:** Create `backend/requirements.txt` (`fastapi`, `uvicorn[standard]`, `sqlalchemy[asyncio]`, `aiosqlite`, `asyncpg`, `pydantic>=2.7`, `groq>=0.11.0`, `httpx`, `python-multipart`, `pytest`, `pytest-asyncio`) and `backend/app/config.py` with environment settings (`GROQ_API_KEY`, `DATABASE_URL` defaulting to `sqlite+aiosqlite:///./vanguard_cod.db` for zero-setup local dev and PostgreSQL compatible for prod).
+- [x] **Task 1.2:** Implement `backend/app/db/models.py` (`Tenant`, `Order`, `CallSession`, `ApprovalRequest`) and `backend/app/db/session.py` with async engine initialization and startup seed data (1 default tenant + 4 realistic Karachi/Lahore COD orders with varying address quality).
+- [x] **Task 1.3:** Implement `backend/app/services/rto_scorer.py` computing the deterministic RTO risk score ($0\text{--}100$) and identifying missing address components.
+- [x] **Task 1.4:** Build `backend/app/api/orders.py` and `backend/app/api/webhooks.py` (`POST /api/v1/webhooks/orders`, `GET /api/v1/orders`).
+  - *Verification:* Run `pytest backend/tests/test_orders.py` to confirm webhook ingestion and RTO score calculation.
+  - *Result:* 10 tests passing on 2026-11-18, including seeded risk scores 33/45/84/70, webhook session queueing, duplicate rejection, and tenant isolation.
+
+---
+
+## Phase 2: Framework-less AsyncGroq Runtime & HITL Tools
+- [x] **Task 2.1:** Build `backend/app/agents/runtime.py` containing `ToolTrace`, `AgentStepTrace`, `ToolRegistry`, and `AutonomousVoiceAgent` using `AsyncGroq` (`llama-3.3-70b-versatile`), parallel `asyncio.gather` tool execution, and automatic fallback when `GROQ_API_KEY` is in mock/test mode.
+- [x] **Task 2.2:** Implement `backend/app/agents/tools.py` with strict Pydantic v2 schemas for:
+  - `confirm_cod_order`
+  - `cancel_cod_order`
+  - `request_price_or_city_modification` (`requires_approval=True`)
+  - `lookup_order_by_phone_or_ref`
+  - `log_rider_delivery_attempt`
+  - `reschedule_delivery_window`
+  - `request_address_reroute` (`requires_approval=True`)
+- [x] **Task 2.3:** Implement `backend/app/agents/outbound_verifier.py` and `backend/app/agents/inbound_rescue.py` with concise phone-optimized system prompts.
+- [x] **Task 2.4:** Implement `backend/app/api/approvals.py` (`GET /api/v1/approvals`, `POST /api/v1/approvals/{id}/resolve`) so paused agent mutations can be approved or rejected and immediately applied to the database.
+  - *Verification:* Run `pytest backend/tests/test_agent_runtime.py` to verify parallel tool execution and HITL approval pausing.
+  - *Result:* 12 tests passing on 2026-11-18; the full suite runs 22 tests green (`22 passed`).
+
+---
+
+## Phase 3: Groq Voice Pipeline (Whisper STT, Orpheus TTS Chunker, & VAD)
+- [x] **Task 3.1:** Implement `backend/app/voice/stt_groq.py` wrapping `AsyncGroq.audio.transcriptions.create(model="whisper-large-v3-turbo")` with in-memory WAV header framing for raw $16\text{ kHz}$ PCM bytes and millisecond latency measurement.
+- [x] **Task 3.2:** Implement `backend/app/voice/tts_provider.py` featuring:
+  - `split_into_orpheus_chunks(text: str, max_len: int = 200) -> list[str]` that splits sentences cleanly without ever exceeding $200\text{ characters}$.
+  - `synthesize_speech(text: str, voice: str)` calling Groq's `canopylabs/orpheus-v1-english` (`response_format="wav"`).
+- [x] **Task 3.3:** Implement `backend/app/voice/vad.py` to compute RMS energy on incoming PCM16 frames and trigger barge-in interruption events.
+  - *Verification:* Run `pytest backend/tests/test_voice_pipeline.py` to verify the $\le 200\text{-character}$ chunker invariant and RMS energy detector.
+  - *Result:* 13 tests passing on 2026-11-19. Covers sentence and clause splitting, hard-splitting a 450-character word into `200/200/50`, in-memory WAV framing with `RIFF/WAVE` headers and 20 ms duration, RMS silence versus loud frames, 3-frame barge-in while the agent speaks, 450 ms silence finalization, forced finalization with `truncated=True` at the max utterance cap, mock Whisper latency and `language` reporting, and mock Orpheus WAV chunk streaming.
+
+---
+
+## Phase 4: Dual-Mode WebSocket Telephony Router
+- [x] **Task 4.1:** Implement `backend/app/api/ws_call.py` (`/ws/call/{session_id}`) coordinating:
+  - Initial greeting synthesis when an `OUTBOUND_VERIFY` call connects.
+  - Bi-directional handling of `audio_chunk`, `text_utterance`, and `barge_in` events.
+  - Real-time emission of `transcript_update`, `tool_trace`, `tts_audio`, `clear_audio`, and `telemetry` packets.
+- [x] **Task 4.2:** Wire `backend/app/main.py` with CORS, lifespan DB initialization, and all REST + WebSocket routers.
+  - *Verification:* Connect to `/ws/call/{session_id}` using FastAPI `TestClient` and verify full turn execution.
+  - *Result:* 15 WebSocket and controller tests passing on 2026-11-19, including full outbound text turn to `confirm_cod_order`, TTS WAV streaming, raw PCM16 utterance transcription, explicit `barge_in` to `clear_audio` (RMS-triggered barge-in is covered in the voice suite), inbound rescue greeting, ping and malformed-frame handling, tenant rejection (`4401`), unknown session rejection (`4404`), terminal session rejection (`4409`), disconnect keeping the call resumable, reconnect skipping the greeting, agent-failure isolation, barge-in during reply generation, barge-in stopping a slow TTS stream, and turns not blocking `ping`. Full backend suite: `54 passed`.
+
+---
+
+## Phase 5: Frontend Operational Console & Browser Softphone Simulator
+
+> Interim simulator available at `GET /softphone`. Production console served by FastAPI at `GET /console` when built (`frontend/dist`).
+
+- [x] **Task 5.1:** Initialize `frontend/` with Vite, React, TypeScript, Tailwind CSS, and Lucide icons configured to the `docs/DESIGN_SYSTEM.md` Obsidian Operational Telemetry palette.
+- [x] **Task 5.2:** Build `OrderQueueTable.tsx` and `WebhookSimulatorModal.tsx` to inspect COD orders, view RTO risk bars, inject new test orders, and trigger outbound verification calls with one click.
+- [x] **Task 5.3:** Build `SoftphoneDialer.tsx` and `LiveCallMonitor.tsx` supporting:
+  - Mode 1: Outbound Verification Call Receiver (simulated customer phone with microphone WebAudio capture + quick-reply voice utterance buttons + barge-in interrupt button).
+  - Mode 2: Inbound Delivery Rescue Dialer (act as courier rider or customer calling in).
+  - Live HTML5 Canvas audio waveform + real-time `AgentStepTrace` & millisecond latency breakdown panel.
+- [x] **Task 5.4:** Build `ApprovalDrawer.tsx` to inspect and approve/reject paused HITL tool requests in real time.
+  - *Verification:* Frontend compiles with TypeScript `tsc --noEmit` and Vite production build (`dist/assets/index-*.js`, `dist/assets/index-*.css`). Backend mounts `/console` at `frontend/dist` and passes full test suite (59 passed in `test_console_api.py` and other test suites). Live HTTP and WebSocket tests verify order queue loading, webhook ingestion, outbound call triggering, softphone PCM16 and text turns, real-time tool traces, latency telemetry, and HITL approval pause and resolution.
+  - *Result:* 59 tests passing on 2026-11-20. All Phase 5 components and views (Operations Queue, Softphone Simulator Lab, HITL Approval Gate, Webhook and Voice Config) verified.

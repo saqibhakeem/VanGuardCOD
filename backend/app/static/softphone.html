@@ -1,0 +1,1499 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VanguardCOD Softphone Simulator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-canvas: #090A0F;
+      --bg-surface-1: #11131A;
+      --bg-surface-2: #171A24;
+      --border-subtle: #222634;
+      --border-focus: #3B82F6;
+      --text-primary: #F3F4F6;
+      --text-secondary: #9CA3AF;
+      --text-muted: #6B7280;
+      --signal-verified: #10B981;
+      --signal-warning: #F59E0B;
+      --signal-critical: #EF4444;
+      --signal-accent: #06B6D4;
+      --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { margin: 0; height: 100%; }
+
+    body {
+      background: var(--bg-canvas);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      overflow: hidden;
+    }
+
+    body.flash-interrupt .call-panel { border-color: var(--signal-critical); }
+
+    button, input, select { font: inherit; }
+
+    code, pre, .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+    .app {
+      display: grid;
+      grid-template-columns: 320px minmax(0, 1fr) 380px;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .rail, .inspector {
+      background: var(--bg-surface-1);
+      overflow-y: auto;
+    }
+
+    .rail { border-right: 1px solid var(--border-subtle); padding: 18px; }
+    .inspector { border-left: 1px solid var(--border-subtle); }
+
+    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+
+    .brand-mark {
+      width: 34px; height: 34px; border: 1px solid var(--border-subtle);
+      border-radius: 6px; display: grid; place-items: center;
+      background: var(--bg-surface-2); font-family: var(--font-mono);
+      font-size: 12px; color: var(--signal-accent);
+    }
+
+    .brand-title { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+    .brand-sub { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+
+    .section { margin-bottom: 22px; }
+
+    .section-title {
+      font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-secondary); margin-bottom: 10px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+
+    .field label {
+      font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-secondary);
+    }
+
+    .field input, .field select {
+      background: var(--bg-surface-2); border: 1px solid var(--border-subtle);
+      color: var(--text-primary); padding: 9px 10px; border-radius: 4px;
+      font-size: 13px; width: 100%;
+    }
+
+    .field input:focus, .field select:focus { outline: none; border-color: var(--border-focus); }
+    .field input:disabled, .field select:disabled { opacity: 0.5; }
+
+    .hint { font-size: 11px; line-height: 16px; color: var(--text-muted); }
+
+    .toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); cursor: pointer; }
+    .toggle input { width: 14px; height: 14px; accent-color: var(--border-focus); }
+
+    .segmented {
+      display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--border-subtle);
+      border-radius: 4px; overflow: hidden;
+    }
+
+    .segmented input { display: none; }
+
+    .segmented label {
+      text-align: center; padding: 8px 6px; font-size: 12px; color: var(--text-secondary);
+      cursor: pointer; background: var(--bg-surface-2); border-right: 1px solid var(--border-subtle);
+    }
+
+    .segmented label:last-of-type { border-right: none; }
+    .segmented input:checked + label { background: #1d2433; color: var(--text-primary); }
+
+    .btn {
+      width: 100%; border: 1px solid var(--border-subtle); background: var(--bg-surface-2);
+      color: var(--text-primary); padding: 10px 12px; border-radius: 4px;
+      cursor: pointer; font-size: 13px; transition: background 120ms ease, border-color 120ms ease;
+    }
+
+    .btn:hover:not(:disabled) { background: #1b1f2b; border-color: #2e3446; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-primary { background: #1d4ed8; border-color: #2563eb; }
+    .btn-primary:hover:not(:disabled) { background: #1e40af; border-color: #1d4ed8; }
+    .btn-danger { background: #3a1418; border-color: #7f1d1d; color: #fecaca; }
+    .btn-danger:hover:not(:disabled) { background: #4c1a20; border-color: #991b1b; }
+    .btn-ghost { background: transparent; }
+    .btn-small { width: auto; padding: 6px 10px; font-size: 12px; }
+
+    .stage { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+
+    .stage-top {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 22px; border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-surface-1);
+    }
+
+    .stage-title { font-size: 13px; font-weight: 600; }
+    .stage-sub { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); letter-spacing: 0.06em; text-transform: uppercase; }
+
+    .conn { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-muted); }
+    .dot.live { background: var(--signal-verified); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12); }
+    .dot.warn { background: var(--signal-warning); }
+    .dot.bad { background: var(--signal-critical); }
+
+    .call-panel {
+      margin: 18px 22px 0; padding: 18px;
+      border: 1px solid var(--border-subtle); border-radius: 8px;
+      background: var(--bg-surface-1); transition: border-color 160ms ease;
+    }
+
+    .call-head { display: flex; align-items: center; gap: 14px; }
+
+    .avatar {
+      width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center;
+      border: 1px solid var(--border-subtle); background: var(--bg-surface-2);
+      font-family: var(--font-mono); font-size: 15px; color: var(--text-secondary);
+      transition: border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+    }
+
+    .avatar.live { border-color: var(--signal-verified); color: var(--signal-verified); box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.10); }
+    .avatar.warn { border-color: var(--signal-warning); color: var(--signal-warning); }
+    .avatar.speaking { border-color: var(--signal-accent); color: var(--signal-accent); box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.10); }
+
+    .peer { min-width: 0; flex: 1; }
+    .peer-name { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+    .peer-sub { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .timer { font-family: var(--font-mono); font-size: 18px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+    .waveform { width: 100%; height: 72px; display: block; margin: 14px 0 6px; }
+
+    .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+    .banner {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      margin-top: 12px; padding: 10px 12px; border-radius: 4px;
+      border: 1px solid #78350f; background: #1c1508; color: #fcd34d; font-size: 12px;
+    }
+
+    .banner.bad { border-color: #7f1d1d; background: #1c0b0d; color: #fecaca; }
+    .banner .btn { flex: 0 0 auto; }
+    .banner-text { flex: 1; min-width: 180px; }
+    .hidden { display: none !important; }
+
+    .ring {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      margin-top: 12px; padding: 12px; border-radius: 5px;
+      border: 1px solid #78350f; background: #1c1508;
+      animation: ringPulse 1.4s ease-in-out infinite;
+    }
+
+    @keyframes ringPulse {
+      0%, 100% { border-color: #78350f; }
+      50% { border-color: #f59e0b; box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.18); }
+    }
+
+    .ring-info { flex: 1; min-width: 180px; }
+    .ring-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--signal-warning); }
+    .ring-peer { font-size: 14px; font-weight: 600; margin-top: 2px; }
+    .ring-sub { font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+    .ring-actions { display: flex; gap: 8px; }
+
+    .conversation {
+      display: flex; flex-direction: column; min-height: 0; flex: 1;
+      margin: 16px 22px 20px; border: 1px solid var(--border-subtle);
+      border-radius: 8px; background: var(--bg-surface-1); overflow: hidden;
+    }
+
+    .conv-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; border-bottom: 1px solid var(--border-subtle);
+      font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em;
+      text-transform: uppercase; color: var(--text-secondary);
+    }
+
+    .transcript { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+
+    .msg { max-width: 78%; display: flex; flex-direction: column; gap: 4px; }
+    .msg.user { align-self: flex-end; }
+    .msg.assistant { align-self: flex-start; }
+    .msg.system { align-self: center; max-width: 92%; }
+
+    .msg-meta { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+    .msg.user .msg-meta { text-align: right; }
+
+    .msg-body { padding: 9px 11px; border-radius: 5px; font-size: 13px; line-height: 19px; border: 1px solid var(--border-subtle); }
+    .msg.assistant .msg-body { background: #0f1b20; border-color: #164e56; color: #d8f7fb; }
+    .msg.user .msg-body { background: #0f1a14; border-color: #14532d; color: #dcfce7; }
+    .msg.system .msg-body { background: var(--bg-surface-2); color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px; }
+
+    .composer { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border-subtle); }
+    .composer input {
+      flex: 1; min-width: 0; background: var(--bg-surface-2); border: 1px solid var(--border-subtle);
+      color: var(--text-primary); border-radius: 4px; padding: 9px 10px; font-size: 13px;
+    }
+    .composer input:focus { outline: none; border-color: var(--border-focus); }
+    .composer .btn { width: auto; padding: 9px 14px; }
+
+    .quick { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 12px; }
+    .chip {
+      border: 1px solid var(--border-subtle); background: transparent; color: var(--text-secondary);
+      padding: 5px 9px; border-radius: 3px; font-size: 11px; cursor: pointer;
+    }
+    .chip:hover:not(:disabled) { color: var(--text-primary); border-color: #2e3446; }
+    .chip:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .inspect-block { padding: 14px 16px; border-bottom: 1px solid var(--border-subtle); }
+
+    .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border-subtle); border: 1px solid var(--border-subtle); border-radius: 4px; overflow: hidden; }
+    .metric { background: var(--bg-surface-1); padding: 10px; }
+    .metric-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-muted); }
+    .metric-value { font-family: var(--font-mono); font-size: 15px; margin-top: 3px; font-variant-numeric: tabular-nums; }
+
+    .kv { display: flex; flex-direction: column; gap: 3px; margin-bottom: 9px; }
+    .kv:last-child { margin-bottom: 0; }
+    .kv span { font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.07em; text-transform: uppercase; color: var(--text-muted); }
+    .kv code { font-size: 10px; color: var(--text-secondary); word-break: break-all; line-height: 15px; }
+
+    .trace-list { display: flex; flex-direction: column; gap: 7px; max-height: 240px; overflow-y: auto; }
+    .trace-card { border: 1px solid var(--border-subtle); border-left: 2px solid var(--signal-accent); border-radius: 3px; padding: 8px 9px; background: var(--bg-surface-2); }
+    .trace-card.warn { border-left-color: var(--signal-warning); }
+    .trace-card.bad { border-left-color: var(--signal-critical); }
+    .trace-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-family: var(--font-mono); font-size: 10px; color: var(--text-primary); }
+    .trace-status { color: var(--text-secondary); }
+    .trace-card pre { margin: 6px 0 0; font-size: 9px; line-height: 13px; color: var(--text-muted); white-space: pre-wrap; word-break: break-all; }
+
+    .log { display: flex; flex-direction: column; gap: 3px; max-height: 200px; overflow-y: auto; }
+    .log-row { display: grid; grid-template-columns: 62px 1fr; gap: 6px; font-family: var(--font-mono); font-size: 9px; line-height: 14px; }
+    .log-time { color: var(--text-muted); }
+    .log-name { color: var(--signal-accent); word-break: break-word; }
+    .log-detail { grid-column: 2; color: var(--text-muted); word-break: break-word; }
+
+    .empty { color: var(--text-muted); font-size: 11px; font-family: var(--font-mono); }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: #232734; border-radius: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+
+    @media (max-width: 1180px) {
+      body { overflow: auto; }
+      .app { grid-template-columns: 1fr; height: auto; min-height: 100vh; }
+      .rail, .inspector { border: none; border-bottom: 1px solid var(--border-subtle); }
+      .conversation { min-height: 420px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="rail">
+      <div class="brand">
+        <div class="brand-mark">VC</div>
+        <div>
+          <div class="brand-title">VanguardCOD</div>
+          <div class="brand-sub">Softphone Simulator</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title"><span>Connection</span></div>
+        <div class="field">
+          <label for="apiKey">Tenant API key</label>
+          <input id="apiKey" type="password" value="vcod_live_demo_key_2026" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="hint">Leave blank when anonymous demo mode is enabled. The key is sent as a query parameter on the WebSocket because browsers cannot set custom headers there.</div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">
+          <span>Order</span>
+          <button id="refreshOrders" class="btn btn-ghost btn-small" type="button">Refresh</button>
+        </div>
+        <div class="field">
+          <label for="orderSelect">Select an order</label>
+          <select id="orderSelect"></select>
+        </div>
+        <div id="setupHint" class="hint">Loading orders.</div>
+      </div>
+
+      <div class="section">
+        <div class="section-title"><span>Call mode</span></div>
+        <div class="segmented" role="radiogroup" aria-label="Call mode">
+          <input id="modeOutbound" type="radio" name="mode" value="outbound" checked>
+          <label for="modeOutbound">Outbound verify</label>
+          <input id="modeInbound" type="radio" name="mode" value="inbound">
+          <label for="modeInbound">Inbound rescue</label>
+        </div>
+        <div class="field" style="margin-top: 12px;">
+          <label for="callerRole">Inbound caller role</label>
+          <select id="callerRole">
+            <option value="customer">Customer</option>
+            <option value="rider">Delivery rider</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="section">
+        <button id="startCall" class="btn btn-primary" type="button" disabled>Start call</button>
+        <div class="hint" style="margin-top: 10px;">Use headphones to avoid the microphone picking up the agent voice and triggering a false barge-in.</div>
+      </div>
+
+      <div class="section">
+        <label class="toggle" for="watchCalls">
+          <input id="watchCalls" type="checkbox" checked>
+          <span>Ring for new outbound calls</span>
+        </label>
+        <div class="hint" style="margin-top: 8px;">While idle, this page checks for queued outbound sessions and rings when one appears.</div>
+      </div>
+
+      <div class="section">
+        <div class="section-title"><span>Session</span></div>
+        <div class="kv"><span>Session ID</span><code id="sessionId">-</code></div>
+        <div class="kv"><span>Direction</span><code id="modeLabel">-</code></div>
+        <div class="kv"><span>WebSocket</span><code id="wsUrl">-</code></div>
+        <div class="kv"><span>Resumed</span><code id="resumedBadge">-</code></div>
+      </div>
+    </aside>
+
+    <main class="stage">
+      <div class="stage-top">
+        <div>
+          <div class="stage-title">Live call</div>
+          <div class="stage-sub">Browser PCM16 16 kHz transport</div>
+        </div>
+        <div class="conn"><span id="connDot" class="dot"></span><span id="connLabel">Idle</span></div>
+      </div>
+
+      <section class="call-panel">
+        <div class="call-head">
+          <div id="avatar" class="avatar">VC</div>
+          <div class="peer">
+            <div id="peerName" class="peer-name">No active call</div>
+            <div id="peerSub" class="peer-sub">Select an order and start a call</div>
+          </div>
+          <div id="callTimer" class="timer">00:00</div>
+        </div>
+
+        <canvas id="waveform" class="waveform"></canvas>
+
+        <div class="controls">
+          <button id="muteBtn" class="btn" type="button" disabled>Mute mic</button>
+          <button id="interruptBtn" class="btn" type="button" disabled>Interrupt</button>
+          <button id="hangupBtn" class="btn btn-danger" type="button" disabled>Hang up</button>
+        </div>
+
+        <div id="ringBar" class="ring hidden">
+          <div class="ring-info">
+            <div class="ring-label">Incoming outbound call</div>
+            <div id="ringPeer" class="ring-peer">-</div>
+            <div id="ringOrder" class="ring-sub">-</div>
+          </div>
+          <div class="ring-actions">
+            <button id="answerBtn" class="btn btn-primary btn-small" type="button">Answer</button>
+            <button id="declineBtn" class="btn btn-danger btn-small" type="button">Decline</button>
+          </div>
+        </div>
+
+        <div id="banner" class="banner hidden"><span id="bannerText" class="banner-text"></span></div>
+        <div id="reconnectBar" class="banner hidden">
+          <span class="banner-text">Call dropped. Reconnect within the grace window to resume this session.</span>
+          <button id="reconnectBtn" class="btn btn-primary btn-small" type="button">Reconnect</button>
+          <button id="endBtn" class="btn btn-danger btn-small" type="button">End call</button>
+        </div>
+      </section>
+
+      <section class="conversation">
+        <div class="conv-head">
+          <span>Live transcript</span>
+          <span id="turnBadge" class="mono">0 turns</span>
+        </div>
+        <div id="transcript" class="transcript">
+          <div class="msg system"><div class="msg-meta">System</div><div class="msg-body">No call yet. Select an order on the left and start a call.</div></div>
+        </div>
+        <div class="composer">
+          <input id="textInput" type="text" placeholder="Type an utterance if the microphone is unavailable" autocomplete="off">
+          <button id="sendText" class="btn btn-primary" type="button">Send</button>
+        </div>
+        <div class="quick">
+          <button class="chip" type="button" data-text="Yes, please confirm the order and deliver it tomorrow evening.">Confirm order</button>
+          <button class="chip" type="button" data-text="Please reschedule the delivery to the day after tomorrow.">Reschedule</button>
+          <button class="chip" type="button" data-text="The address is wrong. Let me give you the correct landmark.">Wrong address</button>
+        </div>
+      </section>
+    </main>
+
+    <aside class="inspector">
+      <div class="inspect-block">
+        <div class="section-title"><span>Turn telemetry</span></div>
+        <div class="metric-grid">
+          <div class="metric"><div class="metric-label">STT</div><div id="sttMs" class="metric-value">-</div></div>
+          <div class="metric"><div class="metric-label">LLM</div><div id="llmMs" class="metric-value">-</div></div>
+          <div class="metric"><div class="metric-label">TTS</div><div id="ttsMs" class="metric-value">-</div></div>
+          <div class="metric"><div class="metric-label">Total</div><div id="totalMs" class="metric-value">-</div></div>
+        </div>
+      </div>
+
+      <div class="inspect-block">
+        <div class="section-title"><span>Order context</span></div>
+        <div class="kv"><span>Order</span><code id="orderRef">-</code></div>
+        <div class="kv"><span>Customer</span><code id="orderCustomer">-</code></div>
+        <div class="kv"><span>Phone</span><code id="orderPhone">-</code></div>
+        <div class="kv"><span>COD</span><code id="orderCod">-</code></div>
+        <div class="kv"><span>RTO risk</span><code id="orderRisk">-</code></div>
+        <div class="kv"><span>Status</span><code id="orderStatus">-</code></div>
+      </div>
+
+      <div class="inspect-block">
+        <div class="section-title"><span>Tool trace</span></div>
+        <div id="traces" class="trace-list"><div class="empty">No tool calls yet.</div></div>
+      </div>
+
+      <div class="inspect-block">
+        <div class="section-title"><span>Event log</span></div>
+        <div id="eventLog" class="log"><div class="empty">No events yet.</div></div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    (() => {
+      const els = {
+        apiKey: document.getElementById('apiKey'),
+        refreshOrders: document.getElementById('refreshOrders'),
+        orderSelect: document.getElementById('orderSelect'),
+        setupHint: document.getElementById('setupHint'),
+        modeOutbound: document.getElementById('modeOutbound'),
+        modeInbound: document.getElementById('modeInbound'),
+        callerRole: document.getElementById('callerRole'),
+        startCall: document.getElementById('startCall'),
+        watchCalls: document.getElementById('watchCalls'),
+        ringBar: document.getElementById('ringBar'),
+        ringPeer: document.getElementById('ringPeer'),
+        ringOrder: document.getElementById('ringOrder'),
+        answerBtn: document.getElementById('answerBtn'),
+        declineBtn: document.getElementById('declineBtn'),
+        sessionId: document.getElementById('sessionId'),
+        modeLabel: document.getElementById('modeLabel'),
+        wsUrl: document.getElementById('wsUrl'),
+        resumedBadge: document.getElementById('resumedBadge'),
+        connDot: document.getElementById('connDot'),
+        connLabel: document.getElementById('connLabel'),
+        avatar: document.getElementById('avatar'),
+        peerName: document.getElementById('peerName'),
+        peerSub: document.getElementById('peerSub'),
+        callTimer: document.getElementById('callTimer'),
+        waveform: document.getElementById('waveform'),
+        muteBtn: document.getElementById('muteBtn'),
+        interruptBtn: document.getElementById('interruptBtn'),
+        hangupBtn: document.getElementById('hangupBtn'),
+        banner: document.getElementById('banner'),
+        bannerText: document.getElementById('bannerText'),
+        reconnectBar: document.getElementById('reconnectBar'),
+        reconnectBtn: document.getElementById('reconnectBtn'),
+        endBtn: document.getElementById('endBtn'),
+        transcript: document.getElementById('transcript'),
+        turnBadge: document.getElementById('turnBadge'),
+        textInput: document.getElementById('textInput'),
+        sendText: document.getElementById('sendText'),
+        sttMs: document.getElementById('sttMs'),
+        llmMs: document.getElementById('llmMs'),
+        ttsMs: document.getElementById('ttsMs'),
+        totalMs: document.getElementById('totalMs'),
+        orderRef: document.getElementById('orderRef'),
+        orderCustomer: document.getElementById('orderCustomer'),
+        orderPhone: document.getElementById('orderPhone'),
+        orderCod: document.getElementById('orderCod'),
+        orderRisk: document.getElementById('orderRisk'),
+        orderStatus: document.getElementById('orderStatus'),
+        traces: document.getElementById('traces'),
+        eventLog: document.getElementById('eventLog'),
+      };
+
+      const state = {
+        ws: null,
+        sessionId: null,
+        wsUrl: null,
+        running: false,
+        muted: false,
+        audioCtx: null,
+        micStream: null,
+        sourceNode: null,
+        processorNode: null,
+        analyser: null,
+        analyserData: null,
+        pendingPcm: new Int16Array(0),
+        playbackQueue: [],
+        currentAudio: null,
+        currentAudioUrl: null,
+        agentSpeaking: false,
+        timerHandle: null,
+        callStartedAt: 0,
+        turns: 0,
+        orders: [],
+        watching: true,
+        ringing: null,
+        dismissed: new Set(),
+        starting: false,
+      };
+
+      const FRAME_SAMPLES = 320;
+      const TARGET_RATE = 16000;
+
+      function timeText(seconds) {
+        const minutes = Math.floor(seconds / 60);
+        const rest = seconds % 60;
+        return String(minutes).padStart(2, '0') + ':' + String(rest).padStart(2, '0');
+      }
+
+      function setStatus(text, tone) {
+        els.connLabel.textContent = text;
+        els.connDot.className = 'dot' + (tone ? ' ' + tone : '');
+      }
+
+      function setAvatarTone(tone) {
+        els.avatar.className = 'avatar' + (tone ? ' ' + tone : '');
+      }
+
+      function logEvent(name, detail) {
+        const row = document.createElement('div');
+        row.className = 'log-row';
+        const time = document.createElement('span');
+        time.className = 'log-time';
+        time.textContent = new Date().toLocaleTimeString([], { hour12: false });
+        const label = document.createElement('span');
+        label.className = 'log-name';
+        label.textContent = name;
+        const extra = document.createElement('span');
+        extra.className = 'log-detail';
+        extra.textContent = detail || '';
+        row.append(time, label, extra);
+        const empty = els.eventLog.querySelector('.empty');
+        if (empty) empty.remove();
+        els.eventLog.prepend(row);
+        while (els.eventLog.children.length > 80) {
+          els.eventLog.lastElementChild.remove();
+        }
+      }
+
+      function showBanner(text, tone) {
+        els.bannerText.textContent = text;
+        els.banner.className = 'banner' + (tone ? ' ' + tone : '');
+      }
+
+      function hideBanner() {
+        els.banner.className = 'banner hidden';
+      }
+
+      function showReconnect(show) {
+        els.reconnectBar.className = 'banner' + (show ? '' : ' hidden');
+      }
+
+      function refreshStartButton() {
+        els.startCall.disabled =
+          els.apiKey.disabled ||
+          state.starting ||
+          state.running ||
+          Boolean(state.ringing) ||
+          state.orders.length === 0;
+      }
+
+      function showRing(pending) {
+        state.ringing = pending;
+        const order = pending.order || {};
+        const cod = typeof order.cod_amount === 'number' ? 'PKR ' + order.cod_amount.toLocaleString() : 'COD -';
+        els.ringPeer.textContent = (order.customer_name || 'Customer') + (order.customer_phone ? ' | ' + order.customer_phone : '');
+        els.ringOrder.textContent = (order.external_order_id || 'Order') + ' | ' + cod;
+        els.ringBar.className = 'ring';
+        document.title = 'Incoming call | VanguardCOD';
+        setStatus('Incoming call', 'warn');
+        setAvatarTone('warn');
+        els.peerName.textContent = order.customer_name || 'Incoming call';
+        els.peerSub.textContent = 'Outbound verification waiting to be answered';
+        refreshStartButton();
+        logEvent('incoming_call', pending.session_id);
+      }
+
+      function hideRing() {
+        state.ringing = null;
+        els.ringBar.className = 'ring hidden';
+        document.title = 'VanguardCOD Softphone Simulator';
+        refreshStartButton();
+      }
+
+      async function pollPending() {
+        if (!els.watchCalls.checked) return;
+        if (state.running || state.starting || state.ringing) return;
+        try {
+          const response = await fetch('/api/v1/calls/pending-outbound', { headers: authHeaders() });
+          if (!response.ok) return;
+          const pending = await response.json();
+          const candidate = pending.find(
+            (item) => !state.dismissed.has(item.session_id) && item.session_id !== state.sessionId
+          );
+          if (candidate) showRing(candidate);
+        } catch (_) {}
+      }
+
+      async function answerCall() {
+        const pending = state.ringing;
+        if (!pending) return;
+        state.starting = true;
+        hideRing();
+        const order = pending.order || {};
+        state.sessionId = pending.session_id;
+        state.wsUrl = buildWsUrl(pending.ws_url);
+        state.muted = false;
+        els.muteBtn.textContent = 'Mute mic';
+        els.sessionId.textContent = state.sessionId;
+        els.wsUrl.textContent = state.wsUrl.replace(/api_key=[^&]+/, 'api_key=***');
+        els.modeLabel.textContent = pending.direction === 'INBOUND_RESCUE' ? 'Inbound rescue' : 'Outbound verification';
+        els.resumedBadge.textContent = 'no';
+        setOrder(order);
+        setPeer(order, pending.direction);
+        resetMetrics();
+        els.traces.replaceChildren();
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = 'No tool calls yet.';
+        els.traces.append(empty);
+        els.transcript.replaceChildren();
+        appendMessage('system', 'Answered. Connecting to the call session.');
+        hideBanner();
+        setStatus('Connecting', 'warn');
+        setAvatarTone('warn');
+        startTimer();
+        refreshStartButton();
+
+        try {
+          try {
+            await startMic();
+          } catch (error) {
+            showBanner('Microphone unavailable: ' + error.message + ' Use the text input below to continue the call.', '');
+            logEvent('microphone.error', error.message);
+          }
+          await connectSocket();
+          if (!state.ws || !state.running) return;
+          setStatus('In call', 'live');
+          setAvatarTone('live');
+        } catch (error) {
+          appendMessage('system', 'Could not answer the call: ' + error.message);
+          setStatus('Call failed', 'bad');
+          setAvatarTone('');
+          finishCall();
+        } finally {
+          state.starting = false;
+          refreshStartButton();
+        }
+      }
+
+      async function declineCall() {
+        const pending = state.ringing;
+        if (!pending) return;
+        state.dismissed.add(pending.session_id);
+        hideRing();
+        setStatus('Call declined', '');
+        setAvatarTone('');
+        els.peerName.textContent = 'No active call';
+        els.peerSub.textContent = 'Select an order and start a call';
+        try {
+          await fetch('/api/v1/calls/' + pending.session_id + '/decline', {
+            method: 'POST',
+            headers: authHeaders(),
+          });
+          logEvent('call_declined', pending.session_id);
+        } catch (error) {
+          logEvent('call_decline_failed', error.message);
+        }
+        refreshStartButton();
+      }
+
+      function appendMessage(role, text, meta) {
+        const row = document.createElement('div');
+        row.className = 'msg ' + role;
+        const head = document.createElement('div');
+        head.className = 'msg-meta';
+        head.textContent = (role === 'assistant' ? 'Agent' : role === 'user' ? 'Caller' : 'System') + (meta ? ' | ' + meta : '');
+        const body = document.createElement('div');
+        body.className = 'msg-body';
+        body.textContent = text;
+        row.append(head, body);
+        const empty = els.transcript.querySelector('.msg.system .msg-body');
+        if (empty && els.transcript.children.length === 1) {
+          els.transcript.replaceChildren();
+        }
+        els.transcript.append(row);
+        els.transcript.scrollTop = els.transcript.scrollHeight;
+      }
+
+      function setOrder(order) {
+        if (!order) return;
+        els.orderRef.textContent = order.external_order_id || '-';
+        els.orderCustomer.textContent = order.customer_name || '-';
+        els.orderPhone.textContent = order.customer_phone || '-';
+        els.orderCod.textContent = typeof order.cod_amount === 'number' ? 'PKR ' + order.cod_amount.toLocaleString() : '-';
+        els.orderRisk.textContent = (order.rto_risk_score ?? '-') + ' / 100';
+        els.orderRisk.style.color = order.rto_risk_score > 75 ? 'var(--signal-critical)' : order.rto_risk_score >= 50 ? 'var(--signal-warning)' : 'var(--signal-verified)';
+        els.orderStatus.textContent = order.status || '-';
+      }
+
+      function initials(name) {
+        return (name || 'VC').split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join('') || 'VC';
+      }
+
+      function setPeer(order, direction) {
+        const name = order && order.customer_name ? order.customer_name : 'No active call';
+        els.peerName.textContent = name;
+        els.avatar.textContent = initials(name);
+        const parts = [];
+        if (direction) parts.push(direction === 'INBOUND_RESCUE' ? 'Inbound rescue' : 'Outbound verification');
+        if (order && order.customer_phone) parts.push(order.customer_phone);
+        els.peerSub.textContent = parts.length ? parts.join(' | ') : 'Select an order and start a call';
+      }
+
+      function updateTimer() {
+        const seconds = Math.max(0, Math.floor((Date.now() - state.callStartedAt) / 1000));
+        els.callTimer.textContent = timeText(seconds);
+      }
+
+      function startTimer() {
+        state.callStartedAt = Date.now();
+        clearInterval(state.timerHandle);
+        updateTimer();
+        state.timerHandle = setInterval(updateTimer, 500);
+      }
+
+      function stopTimer() {
+        clearInterval(state.timerHandle);
+        state.timerHandle = null;
+      }
+
+      function resetMetrics() {
+        els.sttMs.textContent = '-';
+        els.llmMs.textContent = '-';
+        els.ttsMs.textContent = '-';
+        els.totalMs.textContent = '-';
+        els.turnBadge.textContent = '0 turns';
+        state.turns = 0;
+      }
+
+      function updateMetrics(frame) {
+        els.sttMs.textContent = Math.round(frame.stt_ms ?? 0) + ' ms';
+        els.llmMs.textContent = Math.round(frame.llm_ms ?? 0) + ' ms';
+        els.ttsMs.textContent = Math.round(frame.tts_ms ?? 0) + ' ms';
+        els.totalMs.textContent = Math.round(frame.total_ms ?? 0) + ' ms';
+        state.turns += 1;
+        els.turnBadge.textContent = state.turns + (state.turns === 1 ? ' turn' : ' turns');
+      }
+
+      function appendTrace(frame) {
+        const empty = els.traces.querySelector('.empty');
+        if (empty) empty.remove();
+        const card = document.createElement('div');
+        const status = String(frame.status || 'UNKNOWN');
+        card.className = 'trace-card' + (status === 'PAUSED_FOR_APPROVAL' ? ' warn' : status === 'FAILED' || status === 'REJECTED' ? ' bad' : '');
+        const head = document.createElement('div');
+        head.className = 'trace-head';
+        const name = document.createElement('span');
+        name.textContent = frame.tool_name || 'tool';
+        const meta = document.createElement('span');
+        meta.className = 'trace-status';
+        meta.textContent = status + ' | ' + Math.round(frame.duration_ms || 0) + ' ms';
+        head.append(name, meta);
+        card.append(head);
+        if (frame.arguments && Object.keys(frame.arguments).length) {
+          const pre = document.createElement('pre');
+          pre.textContent = JSON.stringify(frame.arguments, null, 2);
+          card.append(pre);
+        }
+        els.traces.prepend(card);
+        if (status === 'PAUSED_FOR_APPROVAL') {
+          showBanner('Operator approval required. Resolve it in the approvals API, then continue the call.', '');
+        }
+      }
+
+      function base64ToBytes(value) {
+        const binary = atob(value);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+        return bytes;
+      }
+
+      function stopPlayback() {
+        state.playbackQueue.forEach((url) => URL.revokeObjectURL(url));
+        state.playbackQueue = [];
+        if (state.currentAudio) {
+          try {
+            state.currentAudio.pause();
+          } catch (_) {}
+          state.currentAudio = null;
+        }
+        if (state.currentAudioUrl) {
+          URL.revokeObjectURL(state.currentAudioUrl);
+          state.currentAudioUrl = null;
+        }
+        state.agentSpeaking = false;
+      }
+
+      function playNext() {
+        if (state.currentAudio || state.playbackQueue.length === 0) return;
+        const url = state.playbackQueue.shift();
+        const audio = new Audio(url);
+        state.currentAudio = audio;
+        state.currentAudioUrl = url;
+        const finish = () => {
+          URL.revokeObjectURL(url);
+          if (state.currentAudioUrl === url) state.currentAudioUrl = null;
+          if (state.currentAudio === audio) state.currentAudio = null;
+          if (state.playbackQueue.length === 0) state.agentSpeaking = false;
+          playNext();
+        };
+        audio.onended = finish;
+        audio.onerror = finish;
+        audio.play().catch(() => {
+          finish();
+        });
+      }
+
+      function enqueueAudio(base64) {
+        const bytes = base64ToBytes(base64);
+        const blob = new Blob([bytes], { type: 'audio/wav' });
+        state.playbackQueue.push(URL.createObjectURL(blob));
+        state.agentSpeaking = true;
+        playNext();
+      }
+
+      function floatToPcm16(input) {
+        const output = new Int16Array(input.length);
+        for (let i = 0; i < input.length; i += 1) {
+          const sample = Math.max(-1, Math.min(1, input[i]));
+          output[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+        }
+        return output;
+      }
+
+      function downsample(input, inRate, mute) {
+        if (inRate === TARGET_RATE) {
+          return mute ? new Int16Array(input.length) : floatToPcm16(input);
+        }
+        const ratio = inRate / TARGET_RATE;
+        const length = Math.floor(input.length / ratio);
+        const output = new Int16Array(length);
+        if (mute) return output;
+        for (let i = 0; i < length; i += 1) {
+          const start = Math.floor(i * ratio);
+          const end = Math.min(input.length, Math.floor((i + 1) * ratio));
+          let sum = 0;
+          for (let j = start; j < end; j += 1) sum += input[j];
+          const sample = end > start ? sum / (end - start) : 0;
+          const clamped = Math.max(-1, Math.min(1, sample));
+          output[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
+        }
+        return output;
+      }
+
+      function sendPcm(pcm) {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return;
+        const bytes = new Uint8Array(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+        state.ws.send(JSON.stringify({ event: 'audio_chunk', pcm16_base64: btoa(binary) }));
+      }
+
+      function queuePcm(samples) {
+        if (samples.length === 0) return;
+        const merged = new Int16Array(state.pendingPcm.length + samples.length);
+        merged.set(state.pendingPcm, 0);
+        merged.set(samples, state.pendingPcm.length);
+        state.pendingPcm = merged;
+        while (state.pendingPcm.length >= FRAME_SAMPLES) {
+          const frame = state.pendingPcm.slice(0, FRAME_SAMPLES);
+          state.pendingPcm = state.pendingPcm.slice(FRAME_SAMPLES);
+          sendPcm(frame);
+        }
+      }
+
+      async function startMic() {
+        if (state.micStream) return;
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('This browser does not expose microphone capture.');
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+        state.micStream = stream;
+        const Context = window.AudioContext || window.webkitAudioContext;
+        const ctx = new Context();
+        state.audioCtx = ctx;
+        await ctx.resume();
+        const source = ctx.createMediaStreamSource(stream);
+        state.sourceNode = source;
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 512;
+        source.connect(analyser);
+        state.analyser = analyser;
+        state.analyserData = new Uint8Array(analyser.fftSize);
+        const processor = ctx.createScriptProcessor(2048, 1, 1);
+        state.processorNode = processor;
+        processor.onaudioprocess = (event) => {
+          if (!state.running) return;
+          const input = event.inputBuffer.getChannelData(0);
+          queuePcm(downsample(input, ctx.sampleRate, state.muted));
+        };
+        source.connect(processor);
+        processor.connect(ctx.destination);
+      }
+
+      function stopMic() {
+        if (state.processorNode) {
+          state.processorNode.onaudioprocess = null;
+          try { state.processorNode.disconnect(); } catch (_) {}
+          state.processorNode = null;
+        }
+        if (state.sourceNode) {
+          try { state.sourceNode.disconnect(); } catch (_) {}
+          state.sourceNode = null;
+        }
+        if (state.micStream) {
+          state.micStream.getTracks().forEach((track) => track.stop());
+          state.micStream = null;
+        }
+        if (state.audioCtx) {
+          try { state.audioCtx.close(); } catch (_) {}
+          state.audioCtx = null;
+        }
+        state.analyser = null;
+        state.analyserData = null;
+        state.pendingPcm = new Int16Array(0);
+      }
+
+      function send(payload) {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) return false;
+        state.ws.send(JSON.stringify(payload));
+        return true;
+      }
+
+      function flashInterrupt() {
+        document.body.classList.add('flash-interrupt');
+        logEvent('client.barge_in', '');
+        setTimeout(() => document.body.classList.remove('flash-interrupt'), 320);
+      }
+
+      function requestHangup() {
+        if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+          finishCall();
+          return;
+        }
+        send({ event: 'hangup' });
+        setStatus('Ending call', 'warn');
+        setAvatarTone('warn');
+        setTimeout(() => {
+          if (state.ws) finishCall();
+        }, 3000);
+      }
+
+      function finishCall() {
+        state.running = false;
+        const ws = state.ws;
+        state.ws = null;
+        if (ws && ws.readyState <= WebSocket.OPEN) {
+          try { ws.close(1000, 'client hangup'); } catch (_) {}
+        }
+        stopMic();
+        stopPlayback();
+        stopTimer();
+        showReconnect(false);
+        hideBanner();
+        state.sessionId = null;
+        state.wsUrl = null;
+        els.sessionId.textContent = '-';
+        els.wsUrl.textContent = '-';
+        els.resumedBadge.textContent = '-';
+        els.muteBtn.disabled = true;
+        els.interruptBtn.disabled = true;
+        els.hangupBtn.disabled = true;
+        hideRing();
+        setSetupLocked(false);
+        refreshStartButton();
+        setStatus('Idle', '');
+        setAvatarTone('');
+        els.peerSub.textContent = 'Select an order and start a call';
+        pollPending();
+      }
+
+      function setSetupLocked(locked) {
+        els.apiKey.disabled = locked;
+        els.orderSelect.disabled = locked;
+        els.modeOutbound.disabled = locked;
+        els.modeInbound.disabled = locked;
+        els.callerRole.disabled = locked;
+        els.refreshOrders.disabled = locked;
+        els.watchCalls.disabled = locked;
+        refreshStartButton();
+      }
+
+      function handleFrame(frame) {
+        const type = String(frame.event || '');
+        logEvent(type, frame.code || frame.status || '');
+
+        if (type === 'session_ready') {
+          state.sessionId = frame.session_id || state.sessionId;
+          els.sessionId.textContent = state.sessionId || '-';
+          els.modeLabel.textContent = frame.direction === 'INBOUND_RESCUE' ? 'Inbound rescue' : 'Outbound verification';
+          els.resumedBadge.textContent = frame.resumed ? 'yes' : 'no';
+          if (frame.order) setOrder(frame.order);
+          setPeer(frame.order, frame.direction);
+          setStatus('In call', 'live');
+          setAvatarTone('live');
+          els.startCall.disabled = true;
+          setSetupLocked(true);
+          els.muteBtn.disabled = false;
+          els.interruptBtn.disabled = false;
+          els.hangupBtn.disabled = false;
+          if (frame.resumed) appendMessage('system', 'Call resumed from stored transcript. Greeting skipped.');
+          return;
+        }
+
+        if (type === 'transcript_update') {
+          const role = frame.role === 'assistant' ? 'assistant' : frame.role === 'user' ? 'user' : 'system';
+          appendMessage(role, String(frame.text || ''), '');
+          return;
+        }
+
+        if (type === 'tts_audio') {
+          if (frame.wav_base64) enqueueAudio(frame.wav_base64);
+          setAvatarTone('speaking');
+          return;
+        }
+
+        if (type === 'clear_audio') {
+          stopPlayback();
+          flashInterrupt();
+          setAvatarTone('live');
+          return;
+        }
+
+        if (type === 'telemetry') {
+          updateMetrics(frame);
+          setAvatarTone('live');
+          return;
+        }
+
+        if (type === 'tool_trace') {
+          appendTrace(frame);
+          return;
+        }
+
+        if (type === 'stt_result') {
+          logEvent('stt_result', (frame.text || '').slice(0, 80));
+          return;
+        }
+
+        if (type === 'vad_barge_in') {
+          flashInterrupt();
+          return;
+        }
+
+        if (type === 'call_paused' || type === 'approval_hold') {
+          const ids = Array.isArray(frame.approval_ids) ? frame.approval_ids.join(', ') : '';
+          showBanner('Operator approval required' + (ids ? ': ' + ids : ''), '');
+          setStatus('Paused for approval', 'warn');
+          return;
+        }
+
+        if (type === 'approval_resolved') {
+          hideBanner();
+          setStatus('In call', 'live');
+          appendMessage('system', 'Operator approval resolved. Call resumed.');
+          return;
+        }
+
+        if (type === 'call_ended') {
+          appendMessage('system', 'Call ended. Reason: ' + (frame.reason || 'hangup'));
+          finishCall();
+          setStatus('Call ended', '');
+          return;
+        }
+
+        if (type === 'error') {
+          const message = String(frame.message || frame.code || 'unknown error');
+          logEvent('error', message);
+          showBanner('Backend error: ' + message, 'bad');
+          return;
+        }
+      }
+
+      function handleSocketClose(ws, event) {
+        if (state.ws === ws) state.ws = null;
+        const wasRunning = state.running;
+        stopMic();
+        stopPlayback();
+        stopTimer();
+        if (!wasRunning) return;
+        state.running = false;
+
+        if (event.code === 4409) {
+          appendMessage('system', 'This call session is already completed or failed.');
+          finishCall();
+          setStatus('Session closed', 'bad');
+          return;
+        }
+        if (event.code === 4401) {
+          appendMessage('system', 'Tenant authentication was rejected.');
+          finishCall();
+          setStatus('Unauthorized', 'bad');
+          return;
+        }
+        if (event.code === 4404) {
+          appendMessage('system', 'Call session or order was not found.');
+          finishCall();
+          setStatus('Not found', 'bad');
+          return;
+        }
+
+        setStatus('Call dropped', 'warn');
+        setAvatarTone('warn');
+        els.muteBtn.disabled = true;
+        els.interruptBtn.disabled = true;
+        els.hangupBtn.disabled = true;
+        showReconnect(true);
+        appendMessage('system', 'Socket closed unexpectedly. Reconnect within the grace window to resume.');
+      }
+
+      function connectSocket() {
+        return new Promise((resolve, reject) => {
+          let settled = false;
+          const ws = new WebSocket(state.wsUrl);
+          state.ws = ws;
+
+          ws.onopen = () => {
+            settled = true;
+            state.running = true;
+            setStatus('Connecting', 'warn');
+            resolve();
+          };
+
+          ws.onmessage = (event) => {
+            try {
+              handleFrame(JSON.parse(event.data));
+            } catch (_) {
+              logEvent('client.parse_error', '');
+            }
+          };
+
+          ws.onerror = () => {
+            if (!settled) {
+              settled = true;
+              reject(new Error('WebSocket connection failed.'));
+            }
+          };
+
+          ws.onclose = (event) => {
+            if (!settled) {
+              settled = true;
+              reject(new Error('WebSocket closed with code ' + event.code + '.'));
+              return;
+            }
+            handleSocketClose(ws, event);
+          };
+        });
+      }
+
+      function buildWsUrl(raw) {
+        const key = els.apiKey.value.trim();
+        if (!key) return raw;
+        const url = new URL(raw);
+        url.searchParams.set('api_key', key);
+        return url.toString();
+      }
+
+      function authHeaders(extra) {
+        const key = els.apiKey.value.trim();
+        const headers = Object.assign({}, extra || {});
+        if (key) headers['X-Tenant-API-Key'] = key;
+        return headers;
+      }
+
+      async function readError(response) {
+        try {
+          const body = await response.json();
+          return body.detail || JSON.stringify(body);
+        } catch (_) {
+          return response.statusText || ('HTTP ' + response.status);
+        }
+      }
+
+      async function loadOrders() {
+        els.setupHint.textContent = 'Loading orders.';
+        try {
+          const response = await fetch('/api/v1/orders?limit=100', { headers: authHeaders() });
+          if (!response.ok) throw new Error(await readError(response));
+          state.orders = await response.json();
+          els.orderSelect.replaceChildren();
+          if (!state.orders.length) {
+            const option = document.createElement('option');
+            option.textContent = 'No orders available';
+            option.value = '';
+            els.orderSelect.append(option);
+            els.setupHint.textContent = 'No orders found. Seed the database or inject one through the webhook.';
+            refreshStartButton();
+            return;
+          }
+          state.orders.forEach((order) => {
+            const option = document.createElement('option');
+            option.value = order.id;
+            option.textContent = order.external_order_id + ' | ' + order.customer_name + ' | PKR ' + Number(order.cod_amount).toLocaleString();
+            els.orderSelect.append(option);
+          });
+          els.setupHint.textContent = state.orders.length + ' orders loaded.';
+          refreshStartButton();
+        } catch (error) {
+          state.orders = [];
+          els.orderSelect.replaceChildren();
+          els.setupHint.textContent = 'Could not load orders: ' + error.message;
+          refreshStartButton();
+        }
+      }
+
+      async function startCall() {
+        const orderId = els.orderSelect.value;
+        if (!orderId) return;
+        state.starting = true;
+        hideRing();
+        refreshStartButton();
+        hideBanner();
+        showReconnect(false);
+        resetMetrics();
+        els.traces.replaceChildren();
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = 'No tool calls yet.';
+        els.traces.append(empty);
+        els.transcript.replaceChildren();
+        appendMessage('system', 'Dialing. Waiting for the session to become ready.');
+
+        const inbound = els.modeInbound.checked;
+        try {
+          let response;
+          if (inbound) {
+            response = await fetch('/api/v1/calls/start-inbound', {
+              method: 'POST',
+              headers: authHeaders({ 'Content-Type': 'application/json' }),
+              body: JSON.stringify({ order_id: orderId, caller_role: els.callerRole.value }),
+            });
+          } else {
+            response = await fetch('/api/v1/calls/trigger-outbound/' + orderId, {
+              method: 'POST',
+              headers: authHeaders(),
+            });
+          }
+          if (!response.ok) throw new Error(await readError(response));
+          const data = await response.json();
+          state.sessionId = data.session_id;
+          state.wsUrl = buildWsUrl(data.ws_url);
+          state.muted = false;
+          els.muteBtn.textContent = 'Mute mic';
+          els.sessionId.textContent = state.sessionId;
+          els.wsUrl.textContent = state.wsUrl.replace(/api_key=[^&]+/, 'api_key=***');
+          els.modeLabel.textContent = data.direction === 'INBOUND_RESCUE' ? 'Inbound rescue' : 'Outbound verification';
+          els.resumedBadge.textContent = 'no';
+          setOrder(data.order);
+          setPeer(data.order, data.direction);
+          setStatus('Connecting', 'warn');
+          setAvatarTone('warn');
+          startTimer();
+
+          try {
+            await startMic();
+          } catch (error) {
+            showBanner('Microphone unavailable: ' + error.message + ' Use the text input below to continue the call.', '');
+            logEvent('microphone.error', error.message);
+          }
+
+          await connectSocket();
+          if (!state.ws || !state.running) return;
+          setStatus('In call', 'live');
+          setAvatarTone('live');
+        } catch (error) {
+          appendMessage('system', 'Could not start the call: ' + error.message);
+          setStatus('Call failed', 'bad');
+          setAvatarTone('');
+          finishCall();
+        } finally {
+          state.starting = false;
+          refreshStartButton();
+        }
+      }
+
+      async function reconnectCall() {
+        if (!state.sessionId || !state.wsUrl) return;
+        showReconnect(false);
+        hideBanner();
+        setStatus('Reconnecting', 'warn');
+        setAvatarTone('warn');
+        try {
+          try {
+            await startMic();
+          } catch (error) {
+            showBanner('Microphone unavailable: ' + error.message + ' Use the text input below to continue the call.', '');
+          }
+          await connectSocket();
+          if (!state.ws || !state.running) return;
+          startTimer();
+          setStatus('Call resumed', 'live');
+          setAvatarTone('live');
+          els.muteBtn.disabled = false;
+          els.interruptBtn.disabled = false;
+          els.hangupBtn.disabled = false;
+        } catch (error) {
+          appendMessage('system', 'Reconnect failed: ' + error.message);
+          showReconnect(true);
+          setStatus('Call dropped', 'warn');
+        }
+      }
+
+      function sendText() {
+        const text = els.textInput.value.trim();
+        if (!text) return;
+        if (!send({ event: 'text_utterance', text })) {
+          showBanner('No active WebSocket connection.', 'bad');
+          return;
+        }
+        els.textInput.value = '';
+      }
+
+      function drawBars(ctx, x0, y0, width, height, levels, color, direction) {
+        ctx.fillStyle = color;
+        const count = levels.length;
+        const gap = 2;
+        const barWidth = Math.max(1, (width - gap * (count - 1)) / count);
+        for (let i = 0; i < count; i += 1) {
+          const level = Math.max(0.03, Math.min(1, levels[i]));
+          const barHeight = level * height;
+          const x = x0 + i * (barWidth + gap);
+          const y = direction === 'up' ? y0 - barHeight : y0;
+          ctx.globalAlpha = 0.35 + level * 0.65;
+          ctx.fillRect(x, y, barWidth, barHeight);
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      function micLevels(count) {
+        const levels = new Array(count).fill(0);
+        if (!state.analyser || !state.analyserData) return levels;
+        state.analyser.getByteTimeDomainData(state.analyserData);
+        const step = Math.max(1, Math.floor(state.analyserData.length / count));
+        for (let i = 0; i < count; i += 1) {
+          let peak = 0;
+          for (let j = 0; j < step; j += 1) {
+            const value = Math.abs(state.analyserData[i * step + j] - 128) / 128;
+            if (value > peak) peak = value;
+          }
+          levels[i] = Math.min(1, peak * 2.8);
+        }
+        return levels;
+      }
+
+      function drawWaveform() {
+        const canvas = els.waveform;
+        const dpr = window.devicePixelRatio || 1;
+        const width = Math.max(1, canvas.clientWidth);
+        const height = Math.max(1, canvas.clientHeight);
+        if (canvas.width !== Math.floor(width * dpr) || canvas.height !== Math.floor(height * dpr)) {
+          canvas.width = Math.floor(width * dpr);
+          canvas.height = Math.floor(height * dpr);
+        }
+        const ctx = canvas.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, width, height);
+
+        const middle = height / 2;
+        ctx.strokeStyle = '#222634';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, middle);
+        ctx.lineTo(width, middle);
+        ctx.stroke();
+
+        const now = performance.now() / 180;
+        const agentLevels = [];
+        for (let i = 0; i < 56; i += 1) {
+          if (state.agentSpeaking) {
+            const pulse = Math.abs(Math.sin(now + i * 0.55)) * 0.7 + Math.abs(Math.sin(now * 0.7 + i * 0.2)) * 0.3;
+            agentLevels.push(0.15 + pulse * 0.85);
+          } else {
+            agentLevels.push(0.02);
+          }
+        }
+        drawBars(ctx, 0, middle - 6, width, middle - 12, agentLevels, '#06B6D4', 'up');
+
+        const userLevels = micLevels(56);
+        drawBars(ctx, 0, height - 4, width, middle - 12, userLevels, '#10B981', 'up');
+
+        requestAnimationFrame(drawWaveform);
+      }
+
+      els.refreshOrders.addEventListener('click', loadOrders);
+      els.startCall.addEventListener('click', startCall);
+      els.answerBtn.addEventListener('click', answerCall);
+      els.declineBtn.addEventListener('click', declineCall);
+      els.watchCalls.addEventListener('change', () => {
+        if (els.watchCalls.checked) {
+          pollPending();
+        } else {
+          hideRing();
+        }
+      });
+      els.hangupBtn.addEventListener('click', requestHangup);
+      els.reconnectBtn.addEventListener('click', reconnectCall);
+      els.endBtn.addEventListener('click', finishCall);
+      els.sendText.addEventListener('click', sendText);
+      els.textInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') sendText();
+      });
+      els.muteBtn.addEventListener('click', () => {
+        state.muted = !state.muted;
+        els.muteBtn.textContent = state.muted ? 'Unmute mic' : 'Mute mic';
+        els.muteBtn.setAttribute('aria-pressed', String(state.muted));
+      });
+      els.interruptBtn.addEventListener('click', () => {
+        if (send({ event: 'barge_in' })) {
+          stopPlayback();
+          flashInterrupt();
+        }
+      });
+      document.querySelectorAll('.chip').forEach((chip) => {
+        chip.addEventListener('click', () => {
+          const text = chip.getAttribute('data-text') || '';
+          if (text) {
+            if (send({ event: 'text_utterance', text })) {
+              els.textInput.value = '';
+            } else {
+              els.textInput.value = text;
+              showBanner('No active WebSocket connection.', 'bad');
+            }
+          }
+        });
+      });
+      window.addEventListener('beforeunload', () => {
+        if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+          try { state.ws.send(JSON.stringify({ event: 'hangup' })); } catch (_) {}
+        }
+      });
+
+      loadOrders();
+      drawWaveform();
+      pollPending();
+      setInterval(pollPending, 4000);
+    })();
+  </script>
+</body>
+</html>
