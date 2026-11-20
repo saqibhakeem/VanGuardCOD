@@ -77,10 +77,12 @@ export function statusTone(status: string): Tone {
     case "NEEDS_APPROVAL":
     case "PAUSED_APPROVAL":
     case "PAUSED_FOR_APPROVAL":
+    case "PENDING_RETRY":
       return "warning";
     case "CANCELLED":
     case "FAILED":
     case "REJECTED":
+    case "FAILED_CONTACT":
       return "critical";
     default:
       return "neutral";

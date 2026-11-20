@@ -29,6 +29,8 @@ class OrderStatus:
     CANCELLED = "CANCELLED"
     RESCHEDULED = "RESCHEDULED"
     NEEDS_APPROVAL = "NEEDS_APPROVAL"
+    PENDING_RETRY = "PENDING_RETRY"
+    FAILED_CONTACT = "FAILED_CONTACT"
 
     ALL = (
         PENDING_CALL,
@@ -37,6 +39,8 @@ class OrderStatus:
         CANCELLED,
         RESCHEDULED,
         NEEDS_APPROVAL,
+        PENDING_RETRY,
+        FAILED_CONTACT,
     )
 
 
@@ -50,6 +54,7 @@ class CallStatus:
     PAUSED_APPROVAL = "PAUSED_APPROVAL"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+    NO_ANSWER = "NO_ANSWER"
 
 
 class ApprovalStatus:
@@ -95,6 +100,10 @@ class Order(Base):
     status: Mapped[str] = mapped_column(
         String(32), index=True, nullable=False, default=OrderStatus.PENDING_CALL
     )
+    call_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_call_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_call_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )

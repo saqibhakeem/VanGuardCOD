@@ -3,8 +3,9 @@
 > **Instruction for Coding Agents:** Read this file at the start of every session and update it whenever a schema, endpoint, or architectural decision changes.
 
 ## 1. Current Project Status
-- **Active Phase:** Phase 5 complete (Frontend Operational Console & Browser Softphone Simulator delivered and verified).
-- **Last Completed Task:** Phase 5 delivery (Vite + React 19 + TypeScript + Tailwind v4 console, dual-mode softphone simulator, HITL approval gate, webhook simulator, and static mount). Full backend suite: `59 passed` on 2026-11-20.
+- **Active Phase:** Phase 5 complete (Frontend SaaS Operational Console, Standalone Customer Phone Simulator Project, & Self-Serve Store Registration).
+- **Last Completed Task:** Voice pipeline optimization and telephony timeout/retry scheduling (25s ring timeout, 2-hour auto-retry schedule, missed call screen on customer softphone, manual "Retry Now", and batch retry dispatching). Full backend suite: `63 passed` on 2026-11-20.
+
 - **Database Default:** Uses `sqlite+aiosqlite:///./vanguard_cod.db` out of the box so local development and automated tests run without external Docker dependencies, while maintaining $100\%$ SQLAlchemy 2.0 compatibility with `postgresql+asyncpg://`. SQLite engines use `NullPool` so pytest can safely run function-scoped event loops without cross-loop connection reuse.
 
 ---
@@ -49,6 +50,14 @@
 ### ADR-010: Reconnect Grace Window and Non-Blocking Turns
 - **Decision:** An explicit `hangup` marks the call `COMPLETED`. An unexpected socket disconnect leaves the session `ACTIVE`, records the transcript, and schedules a grace finalizer that sets `COMPLETED` after `CALL_RECONNECT_GRACE_SECONDS` (default 60). A reconnect within the window cancels the finalizer, skips the greeting, and seeds the agent with stored `user`/`assistant` history. Joining a `COMPLETED` or `FAILED` session closes with `4409`. Turns run in detached tasks so the receive loop keeps handling `ping` and `barge_in`; each turn captures an interrupt epoch, and `_shutdown` cancels `_turn_tasks` explicitly because cancelling a chained waiter does not cancel the awaited task.
 - **Rationale:** Mobile networks drop sockets mid-call. A grace window preserves context without keeping orphaned connections alive forever, and detached turns keep barge-in responsive without allowing a stale reply to be spoken after an interrupt.
+
+### ADR-011: Standalone Customer Phone Simulator & Self-Serve Store Registration
+- **Decision:** Strictly decouple the VanguardCOD B2B E-Commerce SaaS Merchant Portal (`frontend/` or `/console`) and the Customer Phone Simulator (`phone-simulator/` or `/phone`) into two isolated projects and endpoints. The merchant manages orders in their modern SaaS dashboard; clicking "Call Customer" initiates the outbound verification call on the backend, queues it in `GET /api/v1/calls/pending-outbound`, and rings the customer simulator on `/phone` or standalone dev port `5174`. The customer phone simulator runs on its own dedicated project/route, synthesizes an authentic phone ringer with WebAudio, and allows the customer to answer or decline the call, speak via microphone, or trigger quick replies. In addition, new e-commerce merchants can self-register their business via `POST /api/v1/auth/register`, immediately receiving a cryptographically random tenant API key (`vcod_...`), a dedicated webhook ingestion endpoint, and an administrator account.
+- **Rationale:** Merging the customer handset into the merchant platform layout violated operational realism and confused user testing. Decoupling them lets the user or reviewer test with realistic separation (merchant SaaS console on one monitor or tab, customer smartphone on another).
+
+### ADR-012: Telephony Ring Timeout, Missed Call Schedule, & Fast-Forward Testing
+- **Decision:** Outbound phone calls ring on the customer handset for a standard 25-second window with an animated countdown and progress bar. If unanswered within 25 seconds (or if the customer clicks Silence/Ignore), the handset calls `POST /api/v1/calls/{session_id}/timeout`, which marks the call session `COMPLETED`, increments `order.call_attempts`, transitions the order to `PENDING_RETRY`, and sets `order.next_retry_at = utcnow() + 2 hours`. If `order.call_attempts >= order.max_call_attempts` (default 3), the order transitions to `FAILED_CONTACT`. The customer softphone transitions to a dedicated "Missed Call (No Answer)" screen showing store caller ID, order info, call attempt progress, and the 2-hour schedule. In addition, the merchant SaaS dashboard displays attempt badges (`Attempt 1/3 • Retry in 2h`), provides a manual "Retry Now" button calling `POST /api/v1/calls/retry-order/{order_id}` for fast-forward verification testing without waiting 2 hours in demo mode, and offers a batch "Dispatch Retries" toolbar action (`POST /api/v1/calls/dispatch-retries`).
+- **Rationale:** Real telephony does not ring forever; unanswered calls time out to prevent infinite carrier billing and line blocking. Scheduling retries 2 hours later mirrors production logistics operations in Pakistan, while providing fast-forward "Retry Now" buttons gives human operators and evaluators immediate feedback during testing.
 
 ---
 
@@ -105,27 +114,31 @@
 - This is a simulator: the caller is the browser user, not a real PSTN phone. Real phone numbers still require a provider such as Telnyx, SignalWire, or Plivo.
 - Tests: `backend/tests/test_softphone_page.py` (2) covers page serving and absence of a Groq key in markup.
 
-### 3.7 Phase 5 React Operational Console
-- `frontend/`: Single-page operational console built with Vite 7, React 19, TypeScript 5.9, Tailwind CSS v4 (`@tailwindcss/vite`), and Lucide icons following the `docs/DESIGN_SYSTEM.md` Obsidian Operational Telemetry palette.
-- Layout: Full-viewport 3-zone architecture:
-  - Left NavRail: Tenant profile, API key input, live backend health dot, navigation across 4 views, pending approval counter badge, and Groq cost/latency telemetry ticker.
-  - Center Workspace: Top KPI strip (Verified COD Volume, RTO Risk Prevented, Mean Turn Latency, Active Voice Sessions) plus the active view (Operations Queue, Softphone Simulator Lab, HITL Approval Gate, or Webhook & Voice Config).
-  - Right Inspector: Persistent compact softphone dialer and live call monitor with dual-channel canvas waveform and real-time step traces.
-- Components:
-  - `OrderQueueTable`: Dense operational table with status filters, search by reference/customer/phone, RTO risk score meters, and one-click outbound call triggering.
-  - `WebhookSimulatorModal`: Order injection simulator for testing COD payloads, validating fields, computing RTO risk scores, and queueing verification calls.
-  - `SoftphoneDialer`: Dual-mode telephony simulator (Mode 1: Outbound Verification Call Receiver as customer; Mode 2: Inbound Delivery Rescue Dialer as rider or customer) with microphone WebAudio capture, quick-reply buttons, barge-in interrupt, and text utterance input.
-  - `LiveCallMonitor`: Real-time session monitoring with dual-channel HTML5 canvas waveform (Caller Input #10B981, Agent Output #06B6D4), live transcript stream, expandable `AgentStepTrace` cards, and turn latency breakdown vs budget (STT 130 ms, LLM 200 ms, TTS 200 ms, Total 650 ms).
-  - `ApprovalDrawer` and `ApprovalGate`: Real-time HITL approval gate displaying pending paused tool requests, proposed arguments diff, operator notes, and one-click Approve/Reject actions that resume the active call session.
-  - `ConfigView`: Tenant runtime profile, model routing table, and copyable cURL / WebSocket wire protocol snippets.
-  - `Waveform`: HTML5 canvas rendering caller input and agent output levels with barge-in flash indicator.
-- WebAudio Engine (`frontend/src/lib/audio.ts`): Downsamples microphone audio to 16 kHz mono PCM16, batches 20 ms frames (320 samples), base64-encodes for `audio_chunk` frames, analyzes time-domain levels for canvas visualization, and decodes incoming TTS WAV chunks into a gapless playback queue.
-- Reusable Call Hook (`frontend/src/hooks/useCallSession.ts`): Coordinates WebSocket lifecycle, message routing, microphone capture, WAV playback, text injection, barge-in interrupts, reconnection with grace window, and activity callbacks.
-- Production Mount: `backend/app/main.py` serves the compiled SPA at `/console/` from `frontend/dist` using Starlette `StaticFiles(html=True)`.
-- Backend Support Endpoints:
-  - `GET /api/v1/config`: Returns sanitized tenant and model runtime configuration.
-  - `GET /api/v1/calls/sessions`: Returns tenant-scoped call session summaries with turn counts and average latency.
-- Tests: `backend/tests/test_console_api.py` covers runtime config sanitization, tenant authentication, session summary aggregation, tenant isolation, and `/console/` SPA serving. Full backend suite: `59 passed`.
+### 3.7 Phase 5 React SaaS Operational Console & Standalone Customer Phone Simulator
+- `frontend/`: Modern B2B E-Commerce SaaS operational console built with Vite 7, React 19, TypeScript 5.9, Tailwind CSS v4 (`@tailwindcss/vite`), and Lucide icons following modern SaaS design standards (Linear / Stripe / Supabase inspired).
+- Theme: Clean SaaS aesthetic (`#0A0D12` dark background, `#121721` elevated cards, emerald `#10B981` active accents, blue `#3B82F6` primary actions, and clean status semantics).
+- Standalone Customer Phone Simulator Project (`phone-simulator/` running on port 5174, or served at `/phone`):
+  - Completely separate standalone application in its own root directory `phone-simulator/`.
+  - Realistic smartphone device casing with bezel, speaker slit, status bar (5G, battery, clock).
+  - Background polling on `GET /api/v1/calls/pending-outbound` with WebAudio phone ringer synthesis.
+  - Incoming call screen with store caller ID, animated pulsating ring, green Answer, and red Decline buttons.
+  - Active call screen with timer, real-time dual-waveform visualizer, conversational speech bubbles for voice agent and customer, microphone WebAudio toggle, quick-reply voice utterance chips, custom speech input, barge-in interrupt, and end call button.
+  - Inbound delivery rescue dialer to test customer or rider calling in.
+  - Collapsible real-time AI telemetry panel showing sub-second STT, LLM, TTS latency breakdown and tool traces.
+- Multi-Tenant Authentication & Self-Serve Store Registration:
+  - `POST /api/v1/auth/login` and `POST /api/v1/auth/register`.
+  - Self-serve registration in `LoginView.tsx` allows any new store owner to register their brand, generate a dedicated API key (`vcod_...`), configure verification rules, and get their unique webhook URL.
+  - Pre-configured demo roles: `VERIFICATION_OFFICER` (Farhan Ahmed), `LOGISTICS_MANAGER` (Sarah Mansoor), and `SYSTEM_ADMIN` (Tariq Malik).
+- VanguardCOD Merchant Console Views (`/console` or port 5173):
+  - `SaaSNavbar`: Sleek SaaS header with store profile, active AI engine indicator, user role pill, link to Customer Phone Simulator, and navigation tabs.
+  - `OrderQueueTable`: Dense SaaS data table with search, status filters, RTO risk meters, and direct "Call Customer" buttons (triggers call without merging phone into console).
+  - `SessionsView`: Dedicated audit log of call sessions, turn counts, and turn latency analytics.
+  - `KpiStrip`: SaaS metric cards for Verified Orders, RTO Risk Prevented, Delivery Success Rate, and Mean Turn Latency.
+  - `ApprovalGate` and `ApprovalDrawer`: Manager authorization inbox with original vs proposed arguments diff and operator notes.
+  - `StoreAndSheetsView`: Store webhook configuration, simulated order generator, and two-way Google Sheets sync view.
+  - `ConfigView`: Model parameters, Groq routing, and voice persona settings.
+- Tests: `backend/tests/test_console_api.py` covers auth login, store registration, role resolution, runtime config, session summaries, timeout, retry scheduling, and `/console` SPA serving. Full backend suite: `63 passed`.
+
 
 
 

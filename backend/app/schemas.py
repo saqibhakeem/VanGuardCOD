@@ -63,12 +63,16 @@ class OrderOut(BaseModel):
     delivery_window: str | None
     rto_risk_score: int
     status: str
+    call_attempts: int = 0
+    max_call_attempts: int = 3
+    next_retry_at: datetime | None = None
+    last_call_at: datetime | None = None
     created_at: datetime
 
-    @field_validator("created_at", mode="before")
+    @field_validator("created_at", "next_retry_at", "last_call_at", mode="before")
     @classmethod
-    def _created_at_utc(cls, value: datetime) -> datetime:
-        return _as_utc(value) or value
+    def _datetime_utc(cls, value: datetime | None) -> datetime | None:
+        return _as_utc(value) if value is not None else None
 
     @classmethod
     def from_order(cls, order: Order) -> "OrderOut":
@@ -154,11 +158,32 @@ class CallTriggerResponse(BaseModel):
     direction: str
     status: str
     order: OrderOut
+    store_name: str | None = None
 
 
 class CallDeclineResponse(BaseModel):
     session_id: str
     status: str
+
+
+class CallTimeoutResponse(BaseModel):
+    session_id: str
+    status: str
+    order_id: str
+    order_status: str
+    call_attempts: int
+    max_call_attempts: int
+    next_retry_at: datetime | None = None
+
+    @field_validator("next_retry_at", mode="before")
+    @classmethod
+    def _next_retry_utc(cls, value: datetime | None) -> datetime | None:
+        return _as_utc(value) if value is not None else None
+
+
+class RetryDispatchResponse(BaseModel):
+    dispatched_count: int
+    orders_retried: list[str]
 
 
 class InboundStartRequest(BaseModel):
@@ -243,3 +268,49 @@ class HealthResponse(BaseModel):
     app: str
     version: str
     tenant: str | None = None
+
+
+class UserOut(BaseModel):
+    id: str
+    username: str
+    name: str
+    role: str
+    role_label: str
+    permissions: list[str]
+    tenant_id: str
+    tenant_name: str
+
+
+class LoginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    username: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=128)
+    tenant_key: str | None = Field(default=None, max_length=128)
+
+
+class LoginResponse(BaseModel):
+    token: str
+    user: UserOut
+
+
+class RegisterStoreRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    store_name: str = Field(min_length=2, max_length=120)
+    admin_username: str = Field(min_length=2, max_length=64)
+    password: str = Field(min_length=4, max_length=128)
+    default_language: str = Field(default="en", max_length=10)
+    voice_persona: str = Field(default="troy", max_length=32)
+    max_auto_approve_cod: float = Field(default=25000.0, ge=0.0)
+    contact_phone: str | None = Field(default=None, max_length=32)
+
+
+class RegisterStoreResponse(BaseModel):
+    token: str
+    api_key: str
+    tenant: TenantOut
+    user: UserOut
+    webhook_url: str
+
+

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import io
+import logging
 import math
 import re
 import wave
@@ -15,6 +16,8 @@ from typing import Any, Protocol
 
 from app.config import get_settings
 from app.voice.audio import DEFAULT_SAMPLE_RATE, pcm16_to_wav
+
+logger = logging.getLogger(__name__)
 
 ORPHEUS_MAX_CHARS = 200
 
@@ -198,13 +201,22 @@ class GroqTextToSpeech:
             raise ValueError(
                 f"Orpheus input exceeds {ORPHEUS_MAX_CHARS} characters: {len(text)}"
             )
-        response = await self._get_client().audio.speech.create(
-            input=text,
-            model=self.model,
-            voice=voice,
-            response_format="wav",
-        )
-        return await _read_binary_response(response)
+        try:
+            response = await self._get_client().audio.speech.create(
+                input=text,
+                model=self.model,
+                voice=voice,
+                response_format="wav",
+            )
+            return await _read_binary_response(response)
+        except Exception as exc:
+            logger.warning(
+                "Groq Orpheus TTS failed (%s: %s). Falling back to synthetic tone audio.",
+                type(exc).__name__,
+                exc,
+            )
+            duration_ms = min(140.0, 40.0 + len(text))
+            return _build_tone_wav(duration_ms)
 
     async def synthesize_speech(
         self, text: str, *, voice: str | None = None
@@ -224,8 +236,21 @@ class GroqTextToSpeech:
         self, text: str, *, voice: str | None = None
     ) -> AsyncIterator[SpeechChunk]:
         resolved_voice = voice or self.voice
-        for index, chunk in enumerate(split_into_orpheus_chunks(text)):
-            wav_bytes = await self._synthesize_chunk(chunk, resolved_voice)
+        chunks = split_into_orpheus_chunks(text)
+        if not chunks:
+            return
+
+        next_synth: asyncio.Task[bytes] | None = asyncio.create_task(
+            self._synthesize_chunk(chunks[0], resolved_voice)
+        )
+        for index, chunk in enumerate(chunks):
+            wav_bytes = await next_synth
+            if index + 1 < len(chunks):
+                next_synth = asyncio.create_task(
+                    self._synthesize_chunk(chunks[index + 1], resolved_voice)
+                )
+            else:
+                next_synth = None
             yield SpeechChunk(text=chunk, wav_bytes=wav_bytes, index=index)
 
 

@@ -64,5 +64,20 @@ Coding agents must execute these phases sequentially. Mark each item `[x]` only 
   - Mode 2: Inbound Delivery Rescue Dialer (act as courier rider or customer calling in).
   - Live HTML5 Canvas audio waveform + real-time `AgentStepTrace` & millisecond latency breakdown panel.
 - [x] **Task 5.4:** Build `ApprovalDrawer.tsx` to inspect and approve/reject paused HITL tool requests in real time.
-  - *Verification:* Frontend compiles with TypeScript `tsc --noEmit` and Vite production build (`dist/assets/index-*.js`, `dist/assets/index-*.css`). Backend mounts `/console` at `frontend/dist` and passes full test suite (59 passed in `test_console_api.py` and other test suites). Live HTTP and WebSocket tests verify order queue loading, webhook ingestion, outbound call triggering, softphone PCM16 and text turns, real-time tool traces, latency telemetry, and HITL approval pause and resolution.
-  - *Result:* 59 tests passing on 2026-11-20. All Phase 5 components and views (Operations Queue, Softphone Simulator Lab, HITL Approval Gate, Webhook and Voice Config) verified.
+- [x] **Task 5.5:** Decoupled Architecture & Multi-Tenant Self-Serve Store Registration:
+  - Decouple the VanguardCOD SaaS Merchant Portal (`/console`) and the Standalone Customer Phone Simulator (`/phone` or `phone-simulator/`).
+  - Build self-serve store registration and sign-up flow (`POST /api/v1/auth/register`) generating unique tenant API keys (`vcod_...`) and webhook endpoints for Shopify/WooCommerce.
+  - Implement standalone customer smartphone handset simulator in `phone-simulator/` with real-time incoming call listener on `GET /api/v1/calls/pending-outbound`, WebAudio phone ringer synthesis, Answer/Decline call handlers, dual waveform audio visualization, quick customer replies, and text utterance fallback.
+  - Add dedicated `SessionsView.tsx` in VanguardCOD SaaS console for call session auditing, turn counts, and sub-second latency analytics.
+  - *Verification:* Both `phone-simulator/` and `frontend/` compile with TypeScript `tsc --noEmit` and build cleanly in Vite (`dist/`). Backend mounts `/console` and `/phone` routes. Full pytest suite passes (`62 passed in 8.42s`). Live endpoints verified with simulated store registration, order webhook ingestion, and cross-tenant call ringing on standalone phone handset without tenant headers.
+  - *Result:* 62 tests passing on 2026-11-20. Complete decoupling of merchant SaaS portal and customer handset simulator with multi-tenant cross-store ringing achieved.
+- [x] **Task 5.6:** Ringing Timeout, Automated Retry Scheduling & Missed Call Handling:
+  - Implement 25-second telephony ring timeout on customer softphone simulator with animated countdown progress bar.
+  - Add backend `POST /api/v1/calls/{session_id}/timeout`: completes session, increments `order.call_attempts`, and schedules next retry in 2 hours (`order.next_retry_at = utcnow() + 2 hours`, status `PENDING_RETRY`). When reaching `max_call_attempts` (default 3), transitions order to `FAILED_CONTACT`.
+  - Add `POST /api/v1/calls/retry-order/{order_id}` and `POST /api/v1/calls/dispatch-retries`: allows instant manual retry from merchant portal / softphone and batch automated dispatch of due retries.
+  - Build "Missed Call (No Answer)" screen on standalone customer phone handset displaying store caller ID, order details, attempt progress, and 2-hour retry schedule with fast-forward test trigger.
+  - Update merchant SaaS portal `OrderQueueTable.tsx` with retry status badges, "Retry Now" action button, and "Dispatch Retries" header toolbar action.
+  - *Verification:* Run `pytest backend/tests/test_console_api.py` covering timeout, 2-hour schedule, fast-forward retry, and max attempt transition to `FAILED_CONTACT`. Full backend suite passes (`63 passed in 14.30s`). `npm.cmd run build` passes on both `frontend` and `phone-simulator`.
+  - *Result:* 63 tests passing on 2026-11-20. Production-grade timeout and automated retry scheduling operational across backend and both frontends.
+
+

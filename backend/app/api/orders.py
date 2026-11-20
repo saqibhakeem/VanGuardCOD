@@ -11,7 +11,7 @@ from app.schemas import OrderOut
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
-STATUS_PATTERN = "^(PENDING_CALL|CALLING|VERIFIED|CANCELLED|RESCHEDULED|NEEDS_APPROVAL)$"
+STATUS_PATTERN = "^(PENDING_CALL|CALLING|VERIFIED|CANCELLED|RESCHEDULED|NEEDS_APPROVAL|PENDING_RETRY|FAILED_CONTACT)$"
 
 
 @router.get("", response_model=list[OrderOut])

@@ -6,17 +6,18 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import approvals, calls, config, orders, webhooks, ws_call
+from app.api import approvals, auth, calls, config, orders, webhooks, ws_call
 from app.config import get_settings
 from app.db.session import dispose_database, init_db
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 CONSOLE_DIR = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+PHONE_DIR = Path(__file__).resolve().parents[2] / "phone-simulator" / "dist"
 
 
 @asynccontextmanager
@@ -46,12 +47,14 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    application.include_router(auth.router, prefix=settings.api_prefix)
     application.include_router(webhooks.router, prefix=settings.api_prefix)
     application.include_router(orders.router, prefix=settings.api_prefix)
     application.include_router(calls.router, prefix=settings.api_prefix)
     application.include_router(approvals.router, prefix=settings.api_prefix)
     application.include_router(config.router, prefix=settings.api_prefix)
     application.include_router(ws_call.router)
+
 
     if CONSOLE_DIR.is_dir():
         application.mount(
@@ -60,8 +63,18 @@ def create_app() -> FastAPI:
             name="console",
         )
 
-    @application.get("/")
-    async def root() -> dict[str, str]:
+    if PHONE_DIR.is_dir():
+        application.mount(
+            "/phone",
+            StaticFiles(directory=PHONE_DIR, html=True),
+            name="phone",
+        )
+
+    @application.get("/", response_model=None)
+    async def root(request: Request) -> dict[str, str] | RedirectResponse:
+        accept = request.headers.get("accept", "")
+        if "text/html" in accept and CONSOLE_DIR.is_dir():
+            return RedirectResponse(url="/console/")
         return {
             "app": settings.app_name,
             "version": settings.app_version,

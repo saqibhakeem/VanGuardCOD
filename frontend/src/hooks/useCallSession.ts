@@ -402,6 +402,21 @@ export function useCallSession({ onActivity }: Options = {}) {
     [openSession, updatePhase],
   );
 
+  const answerPending = useCallback(
+    async (trigger: CallTrigger) => {
+      try {
+        await openSession(trigger);
+        return trigger;
+      } catch (startError) {
+        setError(messageOf(startError));
+        updatePhase("error");
+        onActivityRef.current?.();
+        throw startError;
+      }
+    },
+    [openSession, updatePhase],
+  );
+
   const hangup = useCallback(() => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -524,6 +539,8 @@ export function useCallSession({ onActivity }: Options = {}) {
     connectionLost,
     interruptedAt,
     now,
+    openSession,
+    answerPending,
     startOutbound,
     startInbound,
     hangup,

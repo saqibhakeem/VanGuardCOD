@@ -74,30 +74,36 @@ export function KpiStrip({ orders, sessions }: Props) {
 
   return (
     <section
-      className="grid grid-cols-2 gap-px border border-line bg-line lg:grid-cols-4"
+      className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
       aria-label="Operational key metrics"
     >
       {cells.map((cell) => {
         const Icon = cell.icon;
         return (
-          <div key={cell.label} className="bg-panel px-4 py-3.5">
+          <div
+            key={cell.label}
+            className="bg-white border border-slate-200 rounded-md p-4 shadow-xs transition-shadow hover:shadow-sm"
+          >
             <div className="flex items-center justify-between gap-2">
-              <span className="font-mono text-[9px] uppercase tracking-[0.08em] text-ink-3">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 {cell.label}
               </span>
-              <Icon className="h-3.5 w-3.5 text-ink-3" aria-hidden />
+              <div className="p-1.5 rounded-sm bg-slate-50 text-slate-600">
+                <Icon className="h-4 w-4" aria-hidden />
+              </div>
             </div>
             <div
-              className={`mt-2 font-mono text-[20px] leading-6 tracking-[-0.01em] ${
-                cell.tone ? TONE_TEXT[cell.tone] : "text-ink"
+              className={`mt-2 text-2xl font-bold tracking-tight ${
+                cell.tone ? TONE_TEXT[cell.tone] : "text-slate-900"
               }`}
             >
               {cell.value}
             </div>
-            <div className="mt-1 truncate text-[11px] text-ink-3">{cell.hint}</div>
+            <div className="mt-1 truncate text-xs text-slate-500">{cell.hint}</div>
           </div>
         );
       })}
     </section>
   );
+
 }

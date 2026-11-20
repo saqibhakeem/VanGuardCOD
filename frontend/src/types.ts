@@ -4,7 +4,9 @@ export type OrderStatus =
   | "VERIFIED"
   | "CANCELLED"
   | "RESCHEDULED"
-  | "NEEDS_APPROVAL";
+  | "NEEDS_APPROVAL"
+  | "PENDING_RETRY"
+  | "FAILED_CONTACT";
 
 export type CallDirection = "OUTBOUND_VERIFY" | "INBOUND_RESCUE";
 
@@ -14,7 +16,48 @@ export type CallerRole = "customer" | "rider";
 
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 
-export type ViewKey = "operations" | "softphone" | "approvals" | "config";
+export type ViewKey =
+  | "operations"
+  | "sessions"
+  | "approvals"
+  | "integrations"
+  | "config";
+
+export interface User {
+  id: string;
+  username: string;
+  name: string;
+  role: string;
+  role_label: string;
+  permissions: string[];
+  tenant_id: string;
+  tenant_name: string;
+}
+
+export interface LoginResponse {
+  token: string;
+  user: User;
+}
+
+export interface RegisterStorePayload {
+  store_name: string;
+  admin_username: string;
+  password: string;
+  default_language?: string;
+  voice_persona?: string;
+  max_auto_approve_cod?: number;
+  contact_phone?: string | null;
+}
+
+export interface RegisterStoreResponse {
+  token: string;
+  api_key: string;
+  tenant: TenantProfile;
+  user: User;
+  webhook_url: string;
+}
+
+
 
 export interface Order {
   id: string;
@@ -29,7 +72,21 @@ export interface Order {
   delivery_window: string | null;
   rto_risk_score: number;
   status: OrderStatus;
+  call_attempts?: number;
+  max_call_attempts?: number;
+  next_retry_at?: string | null;
+  last_call_at?: string | null;
   created_at: string;
+}
+
+export interface CallTimeoutResponse {
+  session_id: string;
+  status: string;
+  order_id: string;
+  order_status: string;
+  call_attempts: number;
+  max_call_attempts: number;
+  next_retry_at: string | null;
 }
 
 export interface CallSessionSummary {
@@ -50,6 +107,7 @@ export interface CallTrigger {
   direction: CallDirection;
   status: CallStatus;
   order: Order;
+  store_name?: string | null;
 }
 
 export interface Approval {

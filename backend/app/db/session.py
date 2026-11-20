@@ -93,6 +93,22 @@ async def init_db(*, seed: bool = True, reset: bool = False) -> None:
             await connection.run_sync(Base.metadata.drop_all)
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
+        # Ensure new retry columns exist on orders table in SQLite
+        try:
+            from sqlalchemy import text
+            res = await connection.execute(text("PRAGMA table_info(orders)"))
+            cols = {row[1] for row in res.fetchall()}
+            if cols:
+                if "call_attempts" not in cols:
+                    await connection.execute(text("ALTER TABLE orders ADD COLUMN call_attempts INTEGER NOT NULL DEFAULT 0"))
+                if "max_call_attempts" not in cols:
+                    await connection.execute(text("ALTER TABLE orders ADD COLUMN max_call_attempts INTEGER NOT NULL DEFAULT 3"))
+                if "next_retry_at" not in cols:
+                    await connection.execute(text("ALTER TABLE orders ADD COLUMN next_retry_at DATETIME"))
+                if "last_call_at" not in cols:
+                    await connection.execute(text("ALTER TABLE orders ADD COLUMN last_call_at DATETIME"))
+        except Exception:
+            pass
 
     if seed:
         factory = get_session_factory()

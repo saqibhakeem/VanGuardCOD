@@ -124,16 +124,21 @@ async def call_websocket(websocket: WebSocket, session_id: str) -> None:
     await websocket.accept()
 
     async with get_session_factory()() as db:
-        tenant = await _resolve_tenant(websocket, db)
-        if tenant is None:
-            await websocket.close(code=4401, reason="invalid tenant API key")
-            return
+        settings = get_settings()
+        api_key = websocket.headers.get("x-tenant-api-key") or websocket.query_params.get(
+            "api_key"
+        )
+        tenant: Tenant | None = None
+        if api_key:
+            tenant = await db.scalar(
+                select(Tenant).where(Tenant.api_key_hash == hash_api_key(api_key))
+            )
+            if tenant is None:
+                await websocket.close(code=4401, reason="invalid tenant API key")
+                return
 
         call_session = await db.scalar(
-            select(CallSession).where(
-                CallSession.id == session_id,
-                CallSession.tenant_id == tenant.id,
-            )
+            select(CallSession).where(CallSession.id == session_id)
         )
         if call_session is None:
             await websocket.close(code=4404, reason="call session not found")
@@ -143,10 +148,24 @@ async def call_websocket(websocket: WebSocket, session_id: str) -> None:
                 code=4409, reason=f"call session is {call_session.status}"
             )
             return
+
+        if tenant is not None:
+            if call_session.tenant_id != tenant.id:
+                await websocket.close(code=4404, reason="call session not found")
+                return
+        else:
+            if settings.allow_anonymous_tenant:
+                tenant = await db.scalar(
+                    select(Tenant).where(Tenant.id == call_session.tenant_id)
+                )
+            if tenant is None:
+                await websocket.close(code=4401, reason="invalid tenant API key")
+                return
+
         order = await db.scalar(
             select(Order).where(
                 Order.id == call_session.order_id,
-                Order.tenant_id == tenant.id,
+                Order.tenant_id == call_session.tenant_id,
             )
         )
         if order is None:

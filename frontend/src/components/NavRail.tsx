@@ -51,15 +51,17 @@ export function NavRail({
 }: Props) {
   const items: NavItem[] = [
     { key: "operations", label: "Operations Queue", icon: LayoutGrid },
-    { key: "softphone", label: "Softphone Simulator Lab", icon: PhoneCall },
+    { key: "sessions", label: "Call Sessions & Telemetry", icon: PhoneCall },
     {
       key: "approvals",
       label: "HITL Approval Gate",
       icon: ShieldCheck,
       badge: approvalCount,
     },
+    { key: "integrations", label: "Store & Sheets Sync", icon: Webhook },
     { key: "config", label: "Webhook and Voice Config", icon: Webhook },
   ];
+
 
   return (
     <aside className="hidden w-56 shrink-0 flex-col border-r border-line bg-panel md:flex">

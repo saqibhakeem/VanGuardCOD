@@ -3,7 +3,8 @@ import { ArrowUpRight, RefreshCw, ShieldCheck } from "lucide-react";
 import type { Approval, ApprovalStatus } from "../types";
 import { formatDateTime, formatMoney, humanize, shortId } from "../lib/format";
 import { StatusPill } from "./StatusPill";
-import { Button, SectionLabel } from "./ui";
+import { Button } from "./ui";
+
 
 type Filter = ApprovalStatus | "ALL";
 
@@ -39,82 +40,96 @@ export function ApprovalGate({
   const pending = approvals.filter((approval) => approval.status === "PENDING").length;
 
   return (
-    <section className="border border-line bg-panel">
-      <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2.5">
-        <SectionLabel>Human in the loop</SectionLabel>
-        <div className="ml-2 flex border border-line">
-          {FILTERS.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => onFilter(option)}
-              aria-pressed={filter === option}
-              className={`border-r border-line px-2 py-1 font-mono text-[9px] uppercase tracking-[0.08em] last:border-r-0 ${
-                filter === option
-                  ? "bg-panel-2 text-ink"
-                  : "text-ink-3 hover:text-ink-2"
-              }`}
-            >
-              {option}
-            </button>
-          ))}
+    <section className="border border-slate-200 bg-white rounded-md shadow-xs overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3 bg-slate-50/60">
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+            Manager Review & Authorization Inbox
+          </span>
+          <div className="flex rounded-sm border border-slate-200 bg-white p-0.5">
+            {FILTERS.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => onFilter(option)}
+                aria-pressed={filter === option}
+                className={`px-3 py-1 text-xs font-medium rounded-xs transition-colors ${
+                  filter === option
+                    ? "bg-[#0070F2] text-white"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+          <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
+            {pending} Pending Review
+          </span>
         </div>
-        <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-ink-3">
-          {pending} pending
-        </span>
-        <Button size="sm" onClick={onRefresh} disabled={loading} className="ml-auto">
-          <RefreshCw
-            className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
-            aria-hidden
-          />
-          Refresh
+
+        <Button size="sm" variant="outline" onClick={onRefresh} disabled={loading}>
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} aria-hidden />
+          Refresh Inbox
         </Button>
       </div>
 
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 px-4 py-16 text-center">
-          <ShieldCheck className="h-7 w-7 text-ink-3" aria-hidden />
-          <div className="text-[13px] text-ink-2">No approvals in this state</div>
-          <div className="max-w-sm text-[11px] leading-5 text-ink-3">
-            Trigger a call and ask for a price change or address reroute. High value mutations
-            pause here for an operator decision.
+          <ShieldCheck className="h-8 w-8 text-slate-300" aria-hidden />
+          <div className="text-sm font-semibold text-slate-700">No approval requests in this view</div>
+          <div className="max-w-md text-xs text-slate-500">
+            During a customer call, if the customer requests a price modification, discount, or address change, it automatically pauses and appears in this manager inbox for review.
           </div>
         </div>
       ) : (
-        <div className="grid gap-px bg-line lg:grid-cols-2">
+        <div className="grid gap-4 p-4 lg:grid-cols-2">
           {filtered.map((approval) => {
             const entries = Object.entries(approval.proposed_arguments).slice(0, 4);
             return (
-              <article key={approval.id} className="flex flex-col gap-2 bg-panel px-4 py-3">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[12px] text-ink">
-                    {approval.order_reference ?? shortId(approval.order_id)}
-                  </span>
-                  <StatusPill status={approval.status} />
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-accent">
-                    {humanize(approval.tool_name)}
-                  </span>
-                  <span className="font-mono text-[9px] text-ink-3">
-                    {formatDateTime(approval.created_at)}
-                  </span>
-                </div>
-                <p className="line-clamp-2 text-[11px] leading-4 text-ink-2">{approval.reason}</p>
-                <div className="flex flex-wrap gap-1">
-                  {entries.map(([key, value]) => (
-                    <span
-                      key={key}
-                      className="border border-line bg-panel-2 px-1.5 py-0.5 font-mono text-[9px] text-ink-3"
-                    >
-                      {key}: {previewValue(key, value)}
+              <article
+                key={approval.id}
+                className="flex flex-col justify-between gap-3 bg-white border border-slate-200 rounded-md p-4 shadow-xs hover:border-[#0070F2] transition-colors"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-2">
+                    <span className="font-mono text-xs font-bold text-slate-900">
+                      {approval.order_reference ?? shortId(approval.order_id)}
                     </span>
-                  ))}
+                    <StatusPill status={approval.status} />
+                  </div>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-xs font-bold text-[#0070F2]">
+                      {humanize(approval.tool_name)}
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      &bull; {formatDateTime(approval.created_at)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 mb-3 bg-slate-50 p-2 rounded border border-slate-100">
+                    {approval.reason}
+                  </p>
+                  <div className="space-y-1">
+                    {entries.map(([k, v]) => (
+                      <div key={k} className="flex justify-between text-[11px]">
+                        <span className="text-slate-500">{humanize(k)}:</span>
+                        <span className="font-mono font-semibold text-slate-800">
+                          {previewValue(k, v)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div className="mt-1 flex justify-end">
-                  <Button size="sm" onClick={() => onOpen(approval.id)}>
-                    {approval.status === "PENDING" ? "Review" : "Inspect"}
-                    <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
+
+                <div className="pt-2 border-t border-slate-100 flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => onOpen(approval.id)}
+                    className="flex items-center gap-1.5"
+                  >
+                    <span>Review & Authorize</span>
+                    <ArrowUpRight className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </article>
@@ -124,4 +139,5 @@ export function ApprovalGate({
       )}
     </section>
   );
+
 }

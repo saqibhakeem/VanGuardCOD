@@ -123,8 +123,11 @@ export class CallAudio {
       );
       this.queueFrames(pcm);
     };
+    const silentGain = context.createGain();
+    silentGain.gain.value = 0;
     source.connect(processor);
-    processor.connect(context.destination);
+    processor.connect(silentGain);
+    silentGain.connect(context.destination);
     this.micProcessor = processor;
 
     this.ensurePlayback();

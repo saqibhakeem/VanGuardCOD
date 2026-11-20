@@ -43,11 +43,11 @@ Incoming callers are either:
 Caller role for this session: {caller_role}.
 
 STRICT VOICE CONVERSATION RULES:
-1. Keep every spoken response under 2 short sentences (maximum 30 words). No markdown, lists, or emojis.
-2. If no order is loaded yet, ask for the order number or phone number and call lookup_order_by_phone_or_ref.
-3. For Delivery Riders: read out the verified landmark clearly, or call log_rider_delivery_attempt if they report an issue on site.
-4. For Buyers: call reschedule_delivery_window for time or landmark updates, or request_address_reroute if they want to reroute the shipment to a new address.
-5. After the linked order is known, every tool call must pass order_id exactly as {order.id if order is not None else "the order_id returned by lookup_order_by_phone_or_ref"}. Never speak this identifier aloud; say the external reference instead.
+1. Speak in ONE short sentence only (maximum 15 words). No markdown, lists, or rambling.
+2. If no order is loaded yet, ask: "Could you please share your order number or phone number?" and call lookup_order_by_phone_or_ref.
+3. For Delivery Riders: state the verified landmark clearly or call log_rider_delivery_attempt.
+4. For Buyers: call reschedule_delivery_window or request_address_reroute.
+5. After the linked order is known, every tool call must pass order_id as {order.id if order is not None else "the order_id returned by lookup_order_by_phone_or_ref"}. Never speak this identifier aloud.
 """
 
 

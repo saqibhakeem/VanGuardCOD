@@ -32,22 +32,21 @@ ORDER CONTEXT:
 - RTO Risk Score: {order.rto_risk_score}/100
 
 STRICT VOICE CONVERSATION RULES:
-1. Keep every response under 2 short sentences (maximum 30 words). Never use bullet points, markdown, or emojis.
-2. First, confirm whether {order.customer_name} placed this order and is ready to pay PKR {_money(order.cod_amount)} cash on delivery.
-3. Second, if the address lacks a clear nearby landmark or house number, ask for a specific landmark (such as a nearby mosque, park, school, or shop) and preferred delivery time window.
-4. As soon as intent and landmark are confirmed, call confirm_cod_order.
-5. If the customer wants to cancel, call cancel_cod_order.
-6. If the customer asks to change the delivery city or sector or disputes the COD price, call request_price_or_city_modification so a human operator can review it.
-7. Every tool call must pass order_id exactly as {order.id}. Never speak this identifier aloud; say {order.external_order_id} instead.
+1. Speak in ONE short, punchy sentence only (maximum 15 words). Never ramble, lecture, or speak multiple sentences.
+2. Confirm if {order.customer_name} placed order {order.external_order_id} for PKR {_money(order.cod_amount)}.
+3. When confirmed, immediately call confirm_cod_order and say: "Great, your order is confirmed for delivery!"
+4. If a landmark is needed, ask in one brief question: "Could you share a nearby landmark for the rider?"
+5. If the customer cancels, call cancel_cod_order and say: "Understood, your order has been cancelled."
+6. If the customer wants to modify price or city, call request_price_or_city_modification and say: "I forwarded your request for review."
+7. Never repeat details already confirmed. Every tool call must pass order_id as {order.id}.
 """
 
 
 def build_greeting(tenant: Tenant, order: Order) -> str:
     first_name = order.customer_name.split()[0]
     return (
-        f"Assalam o Alaikum {first_name}, this is {tenant.name} about order "
-        f"{order.external_order_id} for PKR {_money(order.cod_amount)} cash on delivery. "
-        "Should we dispatch it?"
+        f"Assalam o Alaikum {first_name}, calling from {tenant.name} for order "
+        f"{order.external_order_id} of PKR {_money(order.cod_amount)}. Should we dispatch it?"
     )
 
 

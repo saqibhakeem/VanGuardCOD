@@ -92,6 +92,9 @@ export const api = {
   orders: (signal?: AbortSignal) =>
     request<import("./types").Order[]>("/orders?limit=100", { signal }),
 
+  pendingOutbound: (signal?: AbortSignal) =>
+    request<import("./types").CallTrigger[]>("/calls/pending-outbound", { signal }),
+
   sessions: (limit = 100) =>
     request<import("./types").CallSessionSummary[]>(`/calls/sessions?limit=${limit}`),
 
@@ -117,6 +120,24 @@ export const api = {
       { method: "POST" },
     ),
 
+  timeoutCall: (sessionId: string) =>
+    request<import("./types").CallTimeoutResponse>(
+      `/calls/${sessionId}/timeout`,
+      { method: "POST" },
+    ),
+
+  retryOrder: (orderId: string) =>
+    request<import("./types").CallTrigger>(
+      `/calls/retry-order/${orderId}`,
+      { method: "POST" },
+    ),
+
+  dispatchRetries: (force = true) =>
+    request<{ dispatched_count: number; orders_retried: string[] }>(
+      `/calls/dispatch-retries?force=${force}`,
+      { method: "POST" },
+    ),
+
   resolveApproval: (approvalId: string, approved: boolean, note: string) =>
     request<import("./types").ResolveApprovalResponse>(
       `/approvals/${approvalId}/resolve`,
@@ -134,4 +155,22 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ ...payload, payment_method: "COD" }),
     }),
+
+  login: (username: string, password: string, tenantKey?: string) =>
+    request<import("./types").LoginResponse>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password, tenant_key: tenantKey }),
+    }),
+
+  registerStore: (payload: import("./types").RegisterStorePayload) =>
+    request<import("./types").RegisterStoreResponse>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  getMe: (role?: string) => {
+    const headers: Record<string, string> = {};
+    if (role) headers["X-User-Role"] = role;
+    return request<import("./types").User>("/auth/me", { headers });
+  },
 };
