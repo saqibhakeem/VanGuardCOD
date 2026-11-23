@@ -80,4 +80,36 @@ Coding agents must execute these phases sequentially. Mark each item `[x]` only 
   - *Verification:* Run `pytest backend/tests/test_console_api.py` covering timeout, 2-hour schedule, fast-forward retry, and max attempt transition to `FAILED_CONTACT`. Full backend suite passes (`63 passed in 14.30s`). `npm.cmd run build` passes on both `frontend` and `phone-simulator`.
   - *Result:* 63 tests passing on 2026-11-20. Production-grade timeout and automated retry scheduling operational across backend and both frontends.
 
+## Phase 6: Omni-Channel Telephony & WhatsApp Cloud API Verification Engine
+
+- [x] **Task 6.1:** Meta WhatsApp Cloud API Webhook Handshake & Ingestion:
+  - Implement `GET /api/v1/whatsapp/webhook` with `hub.mode`, `hub.challenge`, and `hub.verify_token` validation.
+  - Implement `POST /api/v1/whatsapp/webhook` payload parser extracting incoming message text, customer phone, and message ID.
+  - Add phone number normalization to E.164 format without leading `+` for Meta Cloud API compatibility.
+
+- [x] **Task 6.2:** Conversational WhatsApp AI Agent Runner:
+  - Implement `backend/app/services/whatsapp_agent.py` using `llama-3.3-70b-versatile` over `AsyncGroq`.
+  - Support multi-turn text verification, landmark capture, preferred delivery window scheduling, and cancellation flows.
+  - Inject active order context, store identity, and delivery rules into the conversational prompt.
+
+- [x] **Task 6.3:** Twilio Voice PSTN Gateway Integration:
+  - Implement `/api/v1/telephony/twilio/voice` endpoint generating dynamic TwiML with `<Gather>` and `<Say>` / `<Play>`.
+  - Implement `/api/v1/telephony/twilio/status` callback handler capturing call outcomes (`completed`, `no-answer`, `busy`, `failed`) and triggering 2-hour retry scheduling.
+
+- [x] **Task 6.4:** Multi-Channel Provider Configuration & Store Settings:
+  - Add channel preference configuration (`VOICE_ONLY`, `WHATSAPP_ONLY`, `VOICE_THEN_WHATSAPP`) on tenant registration and store settings.
+  - Implement credential validation endpoints (`POST /api/v1/channels/test-twilio`, `POST /api/v1/channels/test-whatsapp`).
+
+- [x] **Task 6.5:** Real-Time WhatsApp Human-In-The-Loop Resolution Notification & Anti-Loop Deduplication:
+  - Implement `notify_customer_approval_resolution()` in `whatsapp_agent.py` hooked into `POST /api/v1/approvals/{id}/resolve`.
+  - On approval rejection: immediately notify customer over WhatsApp with operator note and prompt to confirm original order or cancel.
+  - On approval approval: notify customer that the requested modification was accepted.
+  - Anti-Loop Session Resumption: preserve and resume call sessions in both `ACTIVE` and `PAUSED_APPROVAL` states.
+  - Hold message handling: when customer messages while approval is pending, send hold message without invoking tools or creating duplicate tickets.
+  - Approval history prompt injection: inject all past and pending approvals into LLaMA 3.3 prompt with strict negative constraints against repeating rejected requests.
+  - Flexible tool arguments: make `new_address` and `requested_cod_amount` optional in `RequestPriceOrCityModificationArgs` and `_handle_price_or_city`.
+  - Runtime completion fault tolerance: wrap LLM completion in `_chat()` with try/except fallback.
+  - *Verification:* `test_channels_and_omnichannel.py` (8 tests) verifies full WhatsApp approval cycle, rejection notification in transcript, hold handling, and anti-loop deduplication. Full backend test suite: **71 passed**. Frontend builds cleanly with zero errors.
+
+
 

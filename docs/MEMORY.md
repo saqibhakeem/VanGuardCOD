@@ -3,10 +3,10 @@
 > **Instruction for Coding Agents:** Read this file at the start of every session and update it whenever a schema, endpoint, or architectural decision changes.
 
 ## 1. Current Project Status
-- **Active Phase:** Phase 5 complete (Frontend SaaS Operational Console, Standalone Customer Phone Simulator Project, & Self-Serve Store Registration).
-- **Last Completed Task:** Voice pipeline optimization and telephony timeout/retry scheduling (25s ring timeout, 2-hour auto-retry schedule, missed call screen on customer softphone, manual "Retry Now", and batch retry dispatching). Full backend suite: `63 passed` on 2026-11-20.
+- **Active Phase:** Phase 6 complete (Omni-Channel Voice & WhatsApp Engine, Twilio Telephony, Meta Cloud API, Real-Time WhatsApp HITL Rejection Notification, Anti-Loop Deduplication, & Clean Multi-Tenant SaaS Bootstrapping).
+- **Last Completed Task:** Real-time WhatsApp customer notification on admin approval resolution (approval or rejection), anti-loop session resumption and deduplication, prompt-injected approval history, and flexible partial modification schema. Full backend suite: `71 passed` on 2026-11-24. Frontend build: clean (Vite 7 + React 19).
 
-- **Database Default:** Uses `sqlite+aiosqlite:///./vanguard_cod.db` out of the box so local development and automated tests run without external Docker dependencies, while maintaining $100\%$ SQLAlchemy 2.0 compatibility with `postgresql+asyncpg://`. SQLite engines use `NullPool` so pytest can safely run function-scoped event loops without cross-loop connection reuse.
+- **Database Default:** Uses `sqlite+aiosqlite:///./vanguard_cod.db` out of the box so local development and automated tests run without external Docker dependencies, while maintaining $100\%$ SQLAlchemy 2.0 compatibility with `postgresql+asyncpg://`. SQLite engines use `NullPool` so pytest can safely run function-scoped event loops without cross-loop connection reuse. `SEED_ON_STARTUP=false` ensures clean tenant workspaces on fresh boot.
 
 ---
 
@@ -58,6 +58,30 @@
 ### ADR-012: Telephony Ring Timeout, Missed Call Schedule, & Fast-Forward Testing
 - **Decision:** Outbound phone calls ring on the customer handset for a standard 25-second window with an animated countdown and progress bar. If unanswered within 25 seconds (or if the customer clicks Silence/Ignore), the handset calls `POST /api/v1/calls/{session_id}/timeout`, which marks the call session `COMPLETED`, increments `order.call_attempts`, transitions the order to `PENDING_RETRY`, and sets `order.next_retry_at = utcnow() + 2 hours`. If `order.call_attempts >= order.max_call_attempts` (default 3), the order transitions to `FAILED_CONTACT`. The customer softphone transitions to a dedicated "Missed Call (No Answer)" screen showing store caller ID, order info, call attempt progress, and the 2-hour schedule. In addition, the merchant SaaS dashboard displays attempt badges (`Attempt 1/3 • Retry in 2h`), provides a manual "Retry Now" button calling `POST /api/v1/calls/retry-order/{order_id}` for fast-forward verification testing without waiting 2 hours in demo mode, and offers a batch "Dispatch Retries" toolbar action (`POST /api/v1/calls/dispatch-retries`).
 - **Rationale:** Real telephony does not ring forever; unanswered calls time out to prevent infinite carrier billing and line blocking. Scheduling retries 2 hours later mirrors production logistics operations in Pakistan, while providing fast-forward "Retry Now" buttons gives human operators and evaluators immediate feedback during testing.
+
+### ADR-013: Meta WhatsApp Cloud API Omni-Channel Integration
+- **Decision:** Integrate Meta WhatsApp Cloud API as a first-class order verification channel alongside voice telephony. The webhook endpoint `GET /api/v1/whatsapp/webhook` handles Meta verification handshakes (`hub.mode`, `hub.challenge`, `hub.verify_token`), and `POST /api/v1/whatsapp/webhook` processes incoming messages using `whatsapp_agent.py` driven by `llama-3.3-70b-versatile`. Merchants configure channel preference (`VOICE_ONLY`, `WHATSAPP_ONLY`, or `VOICE_THEN_WHATSAPP`) upon registration and in store settings.
+- **Rationale:** In target emerging markets (e.g. Pakistan), many customers decline voice calls from unknown numbers but actively reply to WhatsApp messages. Providing omni-channel choice allows merchants to verify customers on their preferred channel.
+
+### ADR-014: Outbound WhatsApp Human-In-The-Loop Notification & Anti-Loop Deduplication
+- **Decision:** When an operator resolves an approval via `POST /api/v1/approvals/{id}/resolve`, `notify_customer_approval_resolution()` immediately pushes an outbound WhatsApp message to the customer with the resolution (approved or rejected) and the operator note. Furthermore:
+  1. `handle_whatsapp_incoming_message` maintains and resumes sessions across both `ACTIVE` and `PAUSED_APPROVAL` states.
+  2. If a customer sends messages while an approval ticket is `PENDING`, the agent returns a polite hold message without invoking LLM tool calls or generating redundant approval tickets.
+  3. `build_whatsapp_prompt` injects all pending and resolved approval records into the LLaMA 3.3 system prompt with strict negative constraints: if a modification was rejected, the LLM is prohibited from re-calling `request_price_or_city_modification` and must inform the customer that the previous decision stands.
+  4. `DatabaseApprovalGate` deduplicates incoming approval requests for the same order and tool, returning the existing ticket ID.
+- **Rationale:** Prevents conversational dead-ends where customers are left waiting indefinitely after an admin rejection, and stops infinite approval ticket creation loops caused by session re-creation or repeated LLM tool calls.
+
+### ADR-015: Twilio Telephony Voice Gateway with Automatic Retry Scheduling
+- **Decision:** Implement `/api/v1/telephony/twilio/voice` and `/api/v1/telephony/twilio/status` to handle real PSTN phone calls. Outbound calls that end in `no-answer`, `busy`, or `failed` automatically increment `order.call_attempts`, set `order.status = PENDING_RETRY`, and schedule the next attempt in 2 hours (`order.next_retry_at = utcnow() + 2h`), up to `max_call_attempts`.
+- **Rationale:** Ensures real cellular and landline calls match the same production-grade timeout and retry lifecycle as the browser softphone simulator.
+
+### ADR-016: Clean Database Bootstrapping and Flexible Partial Modification Arguments
+- **Decision:** Set default `SEED_ON_STARTUP=false` and remove hardcoded mock customer accounts from the login interface. In addition, relax `RequestPriceOrCityModificationArgs` to make `new_address` and `requested_cod_amount` optional (`None` default), updating only specified fields in `_handle_price_or_city`.
+- **Rationale:** A multi-tenant SaaS must not pollute new merchant workspaces with old mock customer records. Additionally, real-world customer requests often seek only a price discount (keeping address intact) or only an address correction (keeping COD amount intact); requiring both fields caused Groq schema parsing errors or `NoneType` string formatting crashes.
+
+### ADR-017: HTTPS Reverse Proxy Architecture for Meta Webhooks via Ngrok & Vite Proxy
+- **Decision:** Expose the FastAPI backend over secure HTTPS via Ngrok for Meta WhatsApp Cloud API webhooks (which mandate public HTTPS), while configuring the Vite dev server proxy in `frontend/vite.config.ts` to seamlessly route `/api` and `/ws` to the local backend without TLS handshake or socket hang-up errors.
+- **Rationale:** Resolves TLS socket termination errors and enables seamless local development and live WhatsApp testing simultaneously.
 
 ---
 
@@ -139,8 +163,15 @@
   - `ConfigView`: Model parameters, Groq routing, and voice persona settings.
 - Tests: `backend/tests/test_console_api.py` covers auth login, store registration, role resolution, runtime config, session summaries, timeout, retry scheduling, and `/console` SPA serving. Full backend suite: `63 passed`.
 
-
-
+### 3.8 Phase 6 Omni-Channel Voice, WhatsApp Meta Cloud API, & Anti-Loop HITL Engine
+- `backend/app/services/whatsapp_agent.py`: Meta WhatsApp Cloud API agent runner with `llama-3.3-70b-versatile`, system instructions injecting approval history, message formatting, and `notify_customer_approval_resolution()` for instant customer dispatch on admin approval decisions.
+- `backend/app/api/webhooks.py`: `GET /api/v1/whatsapp/webhook` verification handshake and `POST /api/v1/whatsapp/webhook` incoming message event ingestion.
+- `backend/app/api/telephony.py`: Twilio PSTN voice webhook integration (`/api/v1/telephony/twilio/voice`) with dynamic TwiML generation and call status callbacks (`/api/v1/telephony/twilio/status`) mapping no-answer/busy outcomes to 2-hour retry schedules.
+- `backend/app/api/channels.py`: Provider credential validation and channel preference endpoints (`POST /api/v1/channels/test-twilio`, `POST /api/v1/channels/test-whatsapp`).
+- `backend/app/agents/hitl.py`: Deduplicated approval request checkpointing preventing repeated tickets for identical order mutations.
+- `backend/app/agents/tools.py`: Flexible parameter parsing supporting partial updates (discount-only and address-only) without schema validation failures.
+- `backend/app/agents/runtime.py`: Fault-tolerant completion fallback in `_chat()` catching Groq API exceptions and returning courteous customer retries.
+- Tests: `backend/tests/test_channels_and_omnichannel.py` (8 tests) covering store registration with channel choices, channel config endpoints, credential validation, Meta webhook handshake, WhatsApp conversational AI flow, Twilio TwiML generation, call status retry handling, and WhatsApp approval resolution with anti-loop deduplication. Full backend suite: `71 passed`.
 
 ---
 
@@ -159,6 +190,6 @@ TTS_MODEL=canopylabs/orpheus-v1-english
 TTS_DEFAULT_VOICE=troy
 CALL_RECONNECT_GRACE_SECONDS=60
 ALLOW_ANONYMOUS_TENANT=true
-SEED_ON_STARTUP=true
+SEED_ON_STARTUP=false
 CORS_ORIGINS=*
 ```
