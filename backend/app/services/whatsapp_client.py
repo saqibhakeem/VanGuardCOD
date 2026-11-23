@@ -82,7 +82,7 @@ class WhatsAppClient:
         # Normalize phone: Meta expects digits without '+' (e.g. 923001234567)
         clean_phone = recipient_phone.replace("+", "").replace("-", "").replace(" ", "").replace("whatsapp:", "")
 
-            clean_phone = recipient_phone.replace("+", "").replace("-", "").replace(" ", "").replace("whatsapp:", "")
+        if self.is_mock:
             msg_id = f"wamid.mock_{abs(hash(clean_phone + text_body[:20])) % 1000000:06d}"
             logger.info("Mock WhatsApp message sent to %s (ID: %s): %s", clean_phone, msg_id, text_body[:70])
             return {
