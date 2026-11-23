@@ -176,6 +176,19 @@ async def resolve_approval(
             },
         )
 
+    # If this approval is for a WhatsApp verification session, notify the customer immediately
+    try:
+        from app.services.whatsapp_agent import notify_customer_approval_resolution
+        await notify_customer_approval_resolution(
+            approval=approval,
+            approved=payload.approved,
+            resolution_note=resolution_note,
+            db=db,
+        )
+    except Exception as notify_err:
+        import logging
+        logging.getLogger(__name__).warning("Failed to dispatch WhatsApp resolution notice: %s", notify_err)
+
     await db.commit()
     await db.refresh(approval)
     await db.refresh(order)

@@ -748,11 +748,16 @@ class AutonomousVoiceAgent:
         if schemas:
             kwargs["tools"] = schemas
             kwargs["tool_choice"] = "auto"
-        completion = await asyncio.wait_for(
-            self._get_client().chat.completions.create(**kwargs),
-            timeout=self.llm_timeout_s,
-        )
-        return _parse_completion(completion)
+        try:
+            completion = await asyncio.wait_for(
+                self._get_client().chat.completions.create(**kwargs),
+                timeout=self.llm_timeout_s,
+            )
+            return _parse_completion(completion)
+        except Exception as exc:  # noqa: BLE001
+            import logging
+            logging.getLogger(__name__).warning("LLM completion failed: %s; falling back to text response", exc)
+            return "I am experiencing technical difficulty right now. Could you please repeat that?", [], "fallback"
 
     async def _drive(self) -> AgentTurn:
         turn_started = time.perf_counter()

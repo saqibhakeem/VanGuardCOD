@@ -76,6 +76,32 @@ class DatabaseApprovalGate:
         if order_id is None:
             raise ValueError("approval draft is missing an order reference")
 
+        from sqlalchemy import select
+
+        # Deduplication: If a pending approval already exists for this order & tool, reuse it
+        existing_pending = await self.db.scalar(
+            select(ApprovalRequest).where(
+                ApprovalRequest.order_id == order_id,
+                ApprovalRequest.tenant_id == self.tenant.id,
+                ApprovalRequest.tool_name == draft.tool_name,
+                ApprovalRequest.status == ApprovalStatus.PENDING,
+            ).limit(1)
+        )
+        if existing_pending is not None:
+            return existing_pending.id
+
+        # Deduplication: If an identical request was already rejected, do not spam with a new ticket
+        existing_rejected = await self.db.scalar(
+            select(ApprovalRequest).where(
+                ApprovalRequest.order_id == order_id,
+                ApprovalRequest.tenant_id == self.tenant.id,
+                ApprovalRequest.tool_name == draft.tool_name,
+                ApprovalRequest.status == ApprovalStatus.REJECTED,
+            ).order_by(ApprovalRequest.created_at.desc()).limit(1)
+        )
+        if existing_rejected is not None:
+            return existing_rejected.id
+
         approval = ApprovalRequest(
             id=str(uuid4()),
             tenant_id=self.tenant.id,

@@ -230,3 +230,137 @@ async def test_twilio_call_status_no_answer_retry(client: AsyncClient):
     assert order["status"] == OrderStatus.PENDING_RETRY
     assert order["next_retry_at"] is not None
     assert order["call_attempts"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_whatsapp_approval_resolution_and_deduplication(client: AsyncClient):
+    """Verify approval resolution notifies WhatsApp customer and prevents duplicate tickets."""
+    # 1. Ingest a test order
+    payload = {
+        "external_order_id": "ORD-APPR-99",
+        "customer_name": "Hamza Ali",
+        "customer_phone": "+923007654321",
+        "raw_address": "House 10, Street 2, F-8/1, Islamabad",
+        "items_summary": "Silk Lawn Suit x 1",
+        "payment_method": "COD",
+        "cod_amount": 12000.0,
+    }
+    ingest = await client.post("/api/v1/webhooks/orders", json=payload, headers=TENANT_HEADERS)
+    assert ingest.status_code == 201
+    order_id = ingest.json()["order"]["id"]
+
+    # 2. Initiate WhatsApp verification
+    trig = await client.post(
+        f"/api/v1/calls/trigger-outbound/{order_id}?channel=WHATSAPP",
+        headers=TENANT_HEADERS,
+    )
+    assert trig.status_code == 201
+    session_id = trig.json()["session_id"]
+
+    # 3. Simulate customer requesting discount (creating an approval request)
+    meta_payload = {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "messages": [
+                                {
+                                    "from": "923007654321",
+                                    "type": "text",
+                                    "text": {
+                                        "body": "Can you give me 2000 discount? I will pay 10000.",
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    res1 = await client.post("/api/v1/whatsapp/webhook", json=meta_payload)
+    assert res1.status_code == 200
+
+    # 4. Verify an approval ticket was created
+    apprs = await client.get("/api/v1/approvals", params={"status": "PENDING"}, headers=TENANT_HEADERS)
+    assert apprs.status_code == 200
+    pending_list = [a for a in apprs.json() if a["order_id"] == order_id]
+    assert len(pending_list) == 1
+    approval_id = pending_list[0]["id"]
+
+    # 5. Customer messages while approval is STILL pending -> should send hold message, NO duplicate ticket
+    meta_payload_2 = {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "messages": [
+                                {
+                                    "from": "923007654321",
+                                    "type": "text",
+                                    "text": {
+                                        "body": "Any update on my discount request?",
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    res2 = await client.post("/api/v1/whatsapp/webhook", json=meta_payload_2)
+    assert res2.status_code == 200
+
+    # Verify still only 1 pending ticket exists
+    apprs_2 = await client.get("/api/v1/approvals", params={"status": "PENDING"}, headers=TENANT_HEADERS)
+    pending_list_2 = [a for a in apprs_2.json() if a["order_id"] == order_id]
+    assert len(pending_list_2) == 1
+
+    # 6. Admin resolves approval as REJECTED
+    resolve_res = await client.post(
+        f"/api/v1/approvals/{approval_id}/resolve",
+        json={"approved": False, "operator_note": "No discounts on lawn suits"},
+        headers=TENANT_HEADERS,
+    )
+    assert resolve_res.status_code == 200
+    res_data = resolve_res.json()
+    assert res_data["approved"] is False
+
+    # Check that transcript received the rejection message
+    session = res_data["call_session"]
+    transcript = session["transcript"]
+    rejection_turns = [t for t in transcript if "not approved" in t.get("text", "").lower() or "rejected" in t.get("text", "").lower()]
+    assert len(rejection_turns) >= 1, "Customer must have received rejection notice in transcript"
+
+    # 7. Customer replies after rejection -> verify no duplicate approval is created
+    meta_payload_3 = {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "messages": [
+                                {
+                                    "from": "923007654321",
+                                    "type": "text",
+                                    "text": {
+                                        "body": "Ok then please deliver the original order, landmark is near hospital.",
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+    res3 = await client.post("/api/v1/whatsapp/webhook", json=meta_payload_3)
+    assert res3.status_code == 200
+
+    # Verify no new pending approvals were spawned
+    apprs_3 = await client.get("/api/v1/approvals", params={"status": "PENDING"}, headers=TENANT_HEADERS)
+    pending_list_3 = [a for a in apprs_3.json() if a["order_id"] == order_id]
+    assert len(pending_list_3) == 0

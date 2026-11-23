@@ -54,9 +54,9 @@ class RequestPriceOrCityModificationArgs(BaseModel):
     model_config = _STRICT
 
     order_id: str = Field(min_length=1, max_length=36, description="Internal order UUID assigned to the linked call order. Never the external reference.")
-    new_address: str = Field(min_length=5, max_length=500)
-    requested_cod_amount: float = Field(ge=0.0)
-    reason: str = Field(min_length=2, max_length=500)
+    new_address: str | None = Field(default=None, max_length=500, description="New delivery address if customer wants to change destination.")
+    requested_cod_amount: float | None = Field(default=None, ge=0.0, description="New payable COD amount if customer requested a price alteration or discount.")
+    reason: str = Field(default="Customer requested modification", min_length=2, max_length=500, description="Customer stated reason for alteration.")
 
 
 class LookupOrderArgs(BaseModel):
@@ -195,15 +195,17 @@ async def _handle_price_or_city(
     order = await _resolve_order(ctx, args.order_id)
     previous_address = order.raw_address
     previous_cod = order.cod_amount
-    order.raw_address = args.new_address
-    order.cod_amount = args.requested_cod_amount
+    if args.new_address:
+        order.raw_address = args.new_address
+    if args.requested_cod_amount is not None:
+        order.cod_amount = args.requested_cod_amount
     order.status = OrderStatus.PENDING_CALL
     await ctx.db.flush()
     _record(
         ctx,
         f"Approved modification for {order.external_order_id}: "
-        f"address {previous_address} -> {args.new_address}, "
-        f"COD {previous_cod:,.0f} -> {args.requested_cod_amount:,.0f}.",
+        f"address {previous_address} -> {order.raw_address}, "
+        f"COD {previous_cod:,.0f} -> {order.cod_amount:,.0f}.",
     )
     return {
         "order_id": order.id,
