@@ -70,7 +70,7 @@ class Settings:
     tts_default_voice: str = "troy"
     stt_language: str = "en"
     llm_temperature: float = 0.1
-    seed_on_startup: bool = True
+    seed_on_startup: bool = False
     allow_anonymous_tenant: bool = True
     call_reconnect_grace_seconds: float = 60.0
     cors_origins: tuple[str, ...] = field(default_factory=lambda: ("*",))
@@ -99,7 +99,7 @@ class Settings:
             tts_default_voice=_env("TTS_DEFAULT_VOICE", "troy") or "troy",
             stt_language=_env("STT_LANGUAGE", "en") or "en",
             llm_temperature=float(_env("LLM_TEMPERATURE", "0.1") or "0.1"),
-            seed_on_startup=_env_bool("SEED_ON_STARTUP", True),
+            seed_on_startup=_env_bool("SEED_ON_STARTUP", False),
             allow_anonymous_tenant=_env_bool("ALLOW_ANONYMOUS_TENANT", True),
             call_reconnect_grace_seconds=_env_float("CALL_RECONNECT_GRACE_SECONDS", 60.0),
             cors_origins=_env_list("CORS_ORIGINS", ("*",)),

@@ -11,8 +11,6 @@ import {
   PhoneCall,
   Shield,
   Store,
-  User,
-  Zap,
 } from "lucide-react";
 import { useState } from "react";
 import type { FormEvent } from "react";
@@ -35,51 +33,18 @@ interface Props {
 
 type AuthMode = "login" | "register";
 
-const DEMO_ROLES = [
-  {
-    role: "VERIFICATION_OFFICER",
-    username: "operator",
-    password: "operator123",
-    name: "Farhan Ahmed",
-    title: "COD Verification Specialist",
-    desc: "Reviews incoming COD orders, triggers voice verification calls, and inspects buyer responses.",
-    icon: User,
-    badgeColor: "bg-blue-50 text-blue-700 border-blue-200",
-  },
-  {
-    role: "LOGISTICS_MANAGER",
-    username: "manager",
-    password: "manager123",
-    name: "Sarah Mansoor",
-    title: "Logistics & Risk Manager",
-    desc: "Reviews high-risk orders, resolves buyer price disputes and address reroutes in HITL gate.",
-    icon: Shield,
-    badgeColor: "bg-amber-50 text-amber-700 border-amber-200",
-  },
-  {
-    role: "SYSTEM_ADMIN",
-    username: "admin",
-    password: "admin123",
-    name: "Tariq Malik",
-    title: "Store Owner & Administrator",
-    desc: "Manages store API keys, Shopify/WooCommerce webhooks, Google Sheets sync, and AI voice persona.",
-    icon: Zap,
-    badgeColor: "bg-purple-50 text-purple-700 border-purple-200",
-  },
-];
-
 export function LoginView({ onLoginSuccess }: Props) {
   const [mode, setMode] = useState<AuthMode>("login");
 
   // Login form state
-  const [username, setUsername] = useState("operator");
-  const [password, setPassword] = useState("operator123");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
 
   // Registration form state
   const [storeName, setStoreName] = useState("");
   const [regUsername, setRegUsername] = useState("");
   const [regPassword, setRegPassword] = useState("");
-  const [contactPhone, setContactPhone] = useState("+923001234567");
+  const [contactPhone, setContactPhone] = useState("");
   const [defaultLanguage, setDefaultLanguage] = useState("en");
   const [voicePersona, setVoicePersona] = useState("troy");
   const [maxAutoApproveCod, setMaxAutoApproveCod] = useState("25000");
@@ -240,7 +205,7 @@ export function LoginView({ onLoginSuccess }: Props) {
         </div>
         <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
           <span className="h-2 w-2 rounded-full bg-emerald-600 animate-pulse" />
-          Autonomous Voice Pipeline Online
+          Autonomous Verification Engine Online
         </div>
       </div>
 
@@ -347,122 +312,79 @@ export function LoginView({ onLoginSuccess }: Props) {
             </Button>
           </div>
         ) : mode === "login" ? (
-          /* LOGIN MODE */
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-0">
-            {/* Left Side: Modern SaaS Login Form */}
-            <div className="lg:col-span-5 p-6 lg:p-8 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-200">
+          /* LOGIN MODE - CLEAN SAAS AUTHENTICATION */
+          <div className="p-8 max-w-lg mx-auto w-full">
+            <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 uppercase tracking-wider mb-2">
+              <Lock className="h-4 w-4" />
+              Store Authentication
+            </div>
+            <h2 className="text-xl font-bold text-slate-900">Sign in to Store Account</h2>
+            <p className="text-xs text-slate-500 mt-1">
+              Enter your administrator credentials to access your VanguardCOD merchant portal.
+            </p>
+
+            {error ? (
+              <div className="mt-4 p-3 rounded-md bg-red-50 border border-red-200 text-red-700 text-xs">
+                {error}
+              </div>
+            ) : null}
+
+            <form onSubmit={handleLoginSubmit} className="mt-6 space-y-4">
               <div>
-                <div className="flex items-center gap-2 text-xs font-semibold text-blue-600 uppercase tracking-wider mb-2">
-                  <Lock className="h-3.5 w-3.5" />
-                  Store Authentication
-                </div>
-                <h2 className="text-xl font-bold text-slate-800">Sign in to Store</h2>
-                <p className="text-xs text-slate-500 mt-1">
-                  Enter your credentials or choose a pre-configured demo account on the right.
-                </p>
-
-                {error ? (
-                  <div className="mt-4 p-3 rounded-md bg-red-50 border border-red-200 text-red-700 text-xs">
-                    {error}
-                  </div>
-                ) : null}
-
-                <form onSubmit={handleLoginSubmit} className="mt-6 space-y-4">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Username or Email
-                    </label>
-                    <input
-                      type="text"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      className={INPUT_CLASS}
-                      placeholder="e.g. operator, manager, admin"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Password
-                    </label>
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className={INPUT_CLASS}
-                      required
-                    />
-                  </div>
-
-                  <Button
-                    type="submit"
-                    variant="primary"
-                    disabled={busy}
-                    className="w-full py-2 font-semibold flex items-center justify-center gap-2 mt-2 cursor-pointer"
-                  >
-                    {busy ? "Authenticating..." : "Sign In to VanguardCOD Dashboard"}
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </form>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Administrator Username
+                </label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className={INPUT_CLASS}
+                  placeholder="e.g. store_admin"
+                  required
+                />
               </div>
 
-              <div className="mt-6 pt-4 border-t border-slate-100 text-[11px] text-slate-400">
-                VanguardCOD Cloud &bull; Multi-Tenant Isolated &bull; Powered by Groq Voice AI
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Password
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={INPUT_CLASS}
+                  placeholder="Enter your password"
+                  required
+                />
               </div>
+
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={busy}
+                className="w-full py-2.5 font-bold flex items-center justify-center gap-2 mt-2 cursor-pointer"
+              >
+                {busy ? "Authenticating..." : "Sign In to Dashboard"}
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </form>
+
+            <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span>New merchant?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("register");
+                  setError(null);
+                }}
+                className="font-bold text-blue-600 hover:text-blue-700 cursor-pointer"
+              >
+                Register your business &rarr;
+              </button>
             </div>
 
-            {/* Right Side: Role Selector */}
-            <div className="lg:col-span-7 p-6 lg:p-8 bg-slate-50/70 flex flex-col justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3">
-                  Pre-Configured Demo Roles
-                </h3>
-                <p className="text-xs text-slate-600 mb-4">
-                  Click any role below to test immediate sign-in:
-                </p>
-
-                <div className="space-y-3">
-                  {DEMO_ROLES.map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <button
-                        key={item.role}
-                        type="button"
-                        onClick={() => {
-                          setUsername(item.username);
-                          setPassword(item.password);
-                          void performLogin(item.username, item.password);
-                        }}
-                        disabled={busy}
-                        className="w-full text-left p-3.5 bg-white border border-slate-200 hover:border-[#0070F2] hover:shadow-sm rounded-sm transition-all group flex items-start justify-between gap-3 cursor-pointer"
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className="p-2 rounded-sm bg-slate-100 group-hover:bg-blue-50 text-slate-600 group-hover:text-[#0070F2] transition-colors mt-0.5">
-                            <Icon className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-slate-800">
-                                {item.name}
-                              </span>
-                              <span
-                                className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${item.badgeColor}`}
-                              >
-                                {item.title}
-                              </span>
-                            </div>
-                            <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                              {item.desc}
-                            </p>
-                          </div>
-                        </div>
-                        <ArrowRight className="h-4 w-4 text-slate-300 group-hover:text-[#0070F2] group-hover:translate-x-0.5 transition-all shrink-0 mt-2" />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+            <div className="mt-4 text-center text-[11px] text-slate-400">
+              VanguardCOD Cloud &bull; Multi-Tenant Isolated &bull; Powered by Voice & WhatsApp AI
             </div>
           </div>
         ) : (
@@ -883,12 +805,22 @@ export function LoginView({ onLoginSuccess }: Props) {
                   </div>
                 ) : null}
 
-                <div className="pt-3 flex justify-end">
+                <div className="pt-3 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("login");
+                      setError(null);
+                    }}
+                    className="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
+                  >
+                    &larr; Already have an account? Sign In
+                  </button>
                   <Button
                     type="submit"
                     variant="primary"
                     disabled={busy}
-                    className="px-6 py-2.5 font-bold flex items-center gap-2"
+                    className="px-6 py-2.5 font-bold flex items-center gap-2 cursor-pointer"
                   >
                     {busy ? "Registering Store..." : "Complete Store Registration"}
                     <ArrowRight className="h-4 w-4" />

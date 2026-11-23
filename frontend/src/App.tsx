@@ -38,25 +38,6 @@ export default function App() {
     try {
       const raw = window.localStorage.getItem("vanguardcod.user");
       if (raw) return JSON.parse(raw) as User;
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("demo") === "1" || params.get("autologin") === "1") {
-        return {
-          id: "op-1",
-          username: "operator",
-          name: "Tariq Mahmood",
-          role: "VERIFICATION_OFFICER",
-          role_label: "COD Verification Officer",
-          permissions: [
-            "orders.view",
-            "orders.call",
-            "approvals.view",
-            "approvals.resolve",
-            "config.view",
-          ],
-          tenant_id: "02c10353-c749-403f-8568-d57f3077ffd3",
-          tenant_name: "Karachi Threads & Textiles",
-        };
-      }
       return null;
     } catch {
       return null;
