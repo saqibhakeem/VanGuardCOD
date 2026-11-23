@@ -12,7 +12,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import DbDep, TenantDep
+from app.api.deps import DbDep, OptionalTenantDep, TenantDep
 from app.db.models import Tenant
 from app.schemas import (
     ChannelConfigOut,
@@ -97,7 +97,7 @@ async def update_channel_config(
 async def test_twilio_connection(
     payload: TestTwilioRequest,
     db: DbDep,
-    tenant: TenantDep,
+    tenant: OptionalTenantDep = None,
 ) -> TestTwilioResponse:
     """Validate Twilio Account SID and Auth Token against Twilio Accounts API."""
     client = TwilioClient(
@@ -107,8 +107,9 @@ async def test_twilio_connection(
     )
     result = await client.validate_credentials()
     if result.get("ok"):
-        tenant.is_twilio_verified = True
-        await db.commit()
+        if tenant is not None:
+            tenant.is_twilio_verified = True
+            await db.commit()
         return TestTwilioResponse(
             ok=True,
             friendly_name=result.get("friendly_name"),
@@ -121,33 +122,36 @@ async def test_twilio_connection(
 async def test_whatsapp_connection(
     payload: TestWhatsAppRequest,
     db: DbDep,
-    tenant: TenantDep,
+    tenant: OptionalTenantDep = None,
 ) -> TestWhatsAppResponse:
     """Validate WhatsApp Cloud API or Twilio WhatsApp credentials."""
     if payload.provider == "TWILIO":
-        sid = payload.twilio_account_sid or tenant.twilio_account_sid
-        token = payload.twilio_auth_token or tenant.twilio_auth_token
+        sid = payload.twilio_account_sid or (tenant.twilio_account_sid if tenant else None)
+        token = payload.twilio_auth_token or (tenant.twilio_auth_token if tenant else None)
+        from_num = payload.twilio_whatsapp_from or payload.twilio_from_number or (tenant.twilio_from_number if tenant else None)
         if not sid or not token:
             return TestWhatsAppResponse(
                 ok=False,
                 error="Twilio Account SID and Auth Token are required for Twilio WhatsApp.",
             )
-        tw_client = TwilioClient(account_sid=sid, auth_token=token)
+        tw_client = TwilioClient(account_sid=sid, auth_token=token, default_from=from_num)
         tw_res = await tw_client.validate_credentials()
         if tw_res.get("ok"):
-            tenant.is_whatsapp_verified = True
-            await db.commit()
+            if tenant is not None:
+                tenant.is_whatsapp_verified = True
+                await db.commit()
             return TestWhatsAppResponse(
                 ok=True,
-                display_phone_number=payload.twilio_whatsapp_from or "Twilio WhatsApp Sender",
+                display_phone_number=from_num or "Twilio WhatsApp Sender",
                 verified_name=tw_res.get("friendly_name"),
                 quality_rating="CONNECTED",
             )
         return TestWhatsAppResponse(ok=False, error=tw_res.get("error") or "Twilio credentials invalid.")
 
     # Meta WhatsApp Cloud API
-    phone_id = payload.phone_number_id or tenant.whatsapp_phone_number_id
-    token = payload.access_token or tenant.whatsapp_access_token
+    phone_id = payload.phone_number_id or (tenant.whatsapp_phone_number_id if tenant else None)
+    token = payload.access_token or (tenant.whatsapp_access_token if tenant else None)
+    waba_id = payload.waba_id or (tenant.whatsapp_waba_id if tenant else None)
     if not phone_id or not token:
         return TestWhatsAppResponse(
             ok=False,
@@ -157,12 +161,13 @@ async def test_whatsapp_connection(
     wa_client = WhatsAppClient(
         phone_number_id=phone_id,
         access_token=token,
-        waba_id=payload.waba_id or tenant.whatsapp_waba_id,
+        waba_id=waba_id,
     )
     result = await wa_client.validate_credentials()
     if result.get("ok"):
-        tenant.is_whatsapp_verified = True
-        await db.commit()
+        if tenant is not None:
+            tenant.is_whatsapp_verified = True
+            await db.commit()
         return TestWhatsAppResponse(
             ok=True,
             display_phone_number=result.get("display_phone_number"),

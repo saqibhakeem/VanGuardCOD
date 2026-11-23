@@ -44,6 +44,24 @@ async def get_current_tenant(
 TenantDep = Annotated[Tenant, Depends(get_current_tenant)]
 
 
+async def get_optional_tenant(
+    db: DbDep,
+    x_tenant_api_key: Annotated[str | None, Header(alias="X-Tenant-API-Key")] = None,
+) -> Tenant | None:
+    settings = get_settings()
+    api_key = x_tenant_api_key or (
+        settings.default_tenant_api_key if settings.allow_anonymous_tenant else None
+    )
+    if not api_key:
+        return None
+    return await db.scalar(
+        select(Tenant).where(Tenant.api_key_hash == hash_api_key(api_key))
+    )
+
+
+OptionalTenantDep = Annotated[Tenant | None, Depends(get_optional_tenant)]
+
+
 def build_ws_url(request: Request, session_id: str) -> str:
     base = str(request.base_url).rstrip("/")
     if base.startswith("https://"):

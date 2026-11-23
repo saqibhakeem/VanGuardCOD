@@ -149,7 +149,7 @@ class ChannelConfigOut(BaseModel):
 
 
 class TestTwilioRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
 
     account_sid: str = Field(min_length=10, max_length=64)
     auth_token: str = Field(min_length=10, max_length=128)
@@ -157,14 +157,31 @@ class TestTwilioRequest(BaseModel):
 
 
 class TestTwilioResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     ok: bool
+    valid: bool = True
     friendly_name: str | None = None
     account_status: str | None = None
+    message: str | None = None
     error: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _sync_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            ok = bool(data.get("ok", data.get("valid", True)))
+            data["ok"] = ok
+            data["valid"] = ok
+            if not ok and not data.get("message"):
+                data["message"] = data.get("error") or "Twilio authentication failed"
+            elif ok and not data.get("message"):
+                data["message"] = f"Connected ({data.get('friendly_name') or 'Verified'})"
+        return data
 
 
 class TestWhatsAppRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    model_config = ConfigDict(extra="ignore", str_strip_whitespace=True)
 
     provider: Literal["META", "TWILIO"] = "META"
     phone_number_id: str | None = Field(default=None, max_length=64)
@@ -172,15 +189,34 @@ class TestWhatsAppRequest(BaseModel):
     waba_id: str | None = Field(default=None, max_length=64)
     twilio_account_sid: str | None = Field(default=None, max_length=64)
     twilio_auth_token: str | None = Field(default=None, max_length=128)
+    twilio_from_number: str | None = Field(default=None, max_length=32)
     twilio_whatsapp_from: str | None = Field(default=None, max_length=32)
 
 
 class TestWhatsAppResponse(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     ok: bool
+    valid: bool = True
     display_phone_number: str | None = None
     verified_name: str | None = None
     quality_rating: str | None = None
+    message: str | None = None
     error: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _sync_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            ok = bool(data.get("ok", data.get("valid", True)))
+            data["ok"] = ok
+            data["valid"] = ok
+            if not ok and not data.get("message"):
+                data["message"] = data.get("error") or "WhatsApp verification failed"
+            elif ok and not data.get("message"):
+                label = data.get("verified_name") or data.get("display_phone_number") or "Active"
+                data["message"] = f"Connected ({label})"
+        return data
 
 
 class RuntimeConfigOut(BaseModel):
