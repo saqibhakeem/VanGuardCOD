@@ -6,9 +6,17 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, ".", "");
   const backend = env.VITE_BACKEND_URL || "http://127.0.0.1:8100";
 
-  const proxyHeaders = {
-    "ngrok-skip-browser-warning": "true",
-  };
+  const createProxyTarget = (isWs = false) => ({
+    target: backend,
+    changeOrigin: true,
+    secure: false,
+    ws: isWs,
+    configure: (proxy: any) => {
+      proxy.on("proxyReq", (proxyReq: any) => {
+        proxyReq.setHeader("ngrok-skip-browser-warning", "true");
+      });
+    },
+  });
 
   return {
     base: mode === "production" ? "/console/" : "/",
@@ -16,12 +24,12 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       proxy: {
-        "/api": { target: backend, changeOrigin: true, headers: proxyHeaders },
-        "/ws": { target: backend, ws: true, changeOrigin: true, headers: proxyHeaders },
-        "/softphone": { target: backend, changeOrigin: true, headers: proxyHeaders },
-        "/health": { target: backend, changeOrigin: true, headers: proxyHeaders },
-        "/docs": { target: backend, changeOrigin: true, headers: proxyHeaders },
-        "/openapi.json": { target: backend, changeOrigin: true, headers: proxyHeaders },
+        "/api": createProxyTarget(false),
+        "/ws": createProxyTarget(true),
+        "/softphone": createProxyTarget(false),
+        "/health": createProxyTarget(false),
+        "/docs": createProxyTarget(false),
+        "/openapi.json": createProxyTarget(false),
       },
     },
   };
