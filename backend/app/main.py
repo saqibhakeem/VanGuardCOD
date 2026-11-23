@@ -11,13 +11,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api import approvals, auth, calls, config, orders, webhooks, ws_call
+from app.api import approvals, auth, calls, channels, config, orders, twilio_voice, webhooks, whatsapp, ws_call
 from app.config import get_settings
 from app.db.session import dispose_database, init_db
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 CONSOLE_DIR = Path(__file__).resolve().parents[2] / "frontend" / "dist"
-PHONE_DIR = Path(__file__).resolve().parents[2] / "phone-simulator" / "dist"
 
 
 @asynccontextmanager
@@ -52,6 +51,9 @@ def create_app() -> FastAPI:
     application.include_router(orders.router, prefix=settings.api_prefix)
     application.include_router(calls.router, prefix=settings.api_prefix)
     application.include_router(approvals.router, prefix=settings.api_prefix)
+    application.include_router(channels.router, prefix=settings.api_prefix)
+    application.include_router(twilio_voice.router, prefix=settings.api_prefix)
+    application.include_router(whatsapp.router, prefix=settings.api_prefix)
     application.include_router(config.router, prefix=settings.api_prefix)
     application.include_router(ws_call.router)
 
@@ -61,13 +63,6 @@ def create_app() -> FastAPI:
             "/console",
             StaticFiles(directory=CONSOLE_DIR, html=True),
             name="console",
-        )
-
-    if PHONE_DIR.is_dir():
-        application.mount(
-            "/phone",
-            StaticFiles(directory=PHONE_DIR, html=True),
-            name="phone",
         )
 
     @application.get("/", response_model=None)

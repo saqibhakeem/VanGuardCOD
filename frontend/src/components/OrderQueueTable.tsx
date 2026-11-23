@@ -1,4 +1,14 @@
-import { Clock, Inbox, MapPin, PhoneOutgoing, Plus, RefreshCw, Search } from "lucide-react";
+import {
+  Clock,
+  Inbox,
+  MapPin,
+  MessageSquare,
+  PhoneCall,
+  PhoneOutgoing,
+  Plus,
+  RefreshCw,
+  Search,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { Order, OrderStatus } from "../types";
@@ -27,8 +37,8 @@ interface Props {
   triggeringOrderId: string | null;
   callActive: boolean;
   onSelect: (order: Order) => void;
-  onTrigger: (order: Order) => void;
-  onRetry?: (order: Order) => void;
+  onTrigger: (order: Order, channel?: string) => void;
+  onRetry?: (order: Order, channel?: string) => void;
   onDispatchRetries?: () => void;
   dispatchingRetries?: boolean;
   onRefresh: () => void;
@@ -164,6 +174,22 @@ export function OrderQueueTable({
                     <div className="mt-0.5 max-w-[180px] truncate text-[11px] text-slate-500">
                       {order.items_summary}
                     </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                      {order.verification_channel === "WHATSAPP" ? (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <MessageSquare className="h-3 w-3" /> WhatsApp
+                        </span>
+                      ) : order.verification_channel === "PHONE_CALL" ? (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                          <PhoneCall className="h-3 w-3" /> Twilio Voice
+                        </span>
+                      ) : null}
+                      {order.delivery_status ? (
+                        <span className="text-[10px] text-slate-400 capitalize">
+                          &bull; {order.delivery_status}
+                        </span>
+                      ) : null}
+                    </div>
                     {active ? (
                       <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-[#0070F2]">
                         In Call Session
@@ -220,60 +246,92 @@ export function OrderQueueTable({
                   </td>
                   <td className="px-4 py-3 text-right align-top">
                     {order.status === "PENDING_RETRY" ? (
-                      <Button
-                        size="sm"
-                        variant="success"
-                        disabled={callActive || busy}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (onRetry) onRetry(order);
-                          else onTrigger(order);
-                        }}
-                        title="Fast-forward retry call now without waiting 2 hours"
-                        className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
-                      >
-                        <PhoneOutgoing
-                          className={`h-3.5 w-3.5 ${busy ? "animate-pulse" : ""}`}
-                          aria-hidden
-                        />
-                        {busy ? "Dialing..." : "Retry Now"}
-                      </Button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="success"
+                          disabled={callActive || busy}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (onRetry) onRetry(order, "TWILIO");
+                            else onTrigger(order, "TWILIO");
+                          }}
+                          title="Retry AI phone call immediately"
+                          className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
+                        >
+                          <PhoneOutgoing
+                            className={`h-3.5 w-3.5 ${busy ? "animate-pulse" : ""}`}
+                            aria-hidden
+                          />
+                          {busy ? "Dialing..." : "Retry Call"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={callActive || busy}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (onRetry) onRetry(order, "WHATSAPP");
+                            else onTrigger(order, "WHATSAPP");
+                          }}
+                          title="Retry via WhatsApp chat agent"
+                          className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 px-2"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
+                        </Button>
+                      </div>
                     ) : (
-                      <Button
-                        size="sm"
-                        variant={order.status === "VERIFIED" ? "outline" : "success"}
-                        disabled={callActive || busy || order.status === "CANCELLED" || order.status === "FAILED_CONTACT"}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onTrigger(order);
-                        }}
-                        title={
-                          callActive
-                            ? "Hang up the active call before triggering another"
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant={order.status === "VERIFIED" ? "outline" : "success"}
+                          disabled={callActive || busy || order.status === "CANCELLED" || order.status === "FAILED_CONTACT"}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onTrigger(order);
+                          }}
+                          title={
+                            callActive
+                              ? "Hang up active call before triggering another"
+                              : order.status === "FAILED_CONTACT"
+                              ? "Customer uncontactable after maximum attempts"
+                              : "Trigger outbound verification via configured channel"
+                          }
+                          className={
+                            order.status === "VERIFIED"
+                              ? ""
+                              : order.status === "FAILED_CONTACT"
+                              ? "opacity-50 cursor-not-allowed"
+                              : "bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                          }
+                        >
+                          <PhoneOutgoing
+                            className={`h-3.5 w-3.5 ${busy ? "animate-pulse" : ""}`}
+                            aria-hidden
+                          />
+                          {busy
+                            ? "Dispatching..."
+                            : order.status === "VERIFIED"
+                            ? "Re-verify"
                             : order.status === "FAILED_CONTACT"
-                            ? "Customer uncontactable after maximum attempts"
-                            : "Trigger outbound call to customer phone emulator"
-                        }
-                        className={
-                          order.status === "VERIFIED"
-                            ? ""
-                            : order.status === "FAILED_CONTACT"
-                            ? "opacity-50 cursor-not-allowed"
-                            : "bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                        }
-                      >
-                        <PhoneOutgoing
-                          className={`h-3.5 w-3.5 ${busy ? "animate-pulse" : ""}`}
-                          aria-hidden
-                        />
-                        {busy
-                          ? "Dialing..."
-                          : order.status === "VERIFIED"
-                          ? "Re-verify"
-                          : order.status === "FAILED_CONTACT"
-                          ? "Failed Contact"
-                          : "Call Customer"}
-                      </Button>
+                            ? "Failed Contact"
+                            : "Verify Call"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={callActive || busy || order.status === "CANCELLED" || order.status === "FAILED_CONTACT"}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onTrigger(order, "WHATSAPP");
+                          }}
+                          title="Trigger WhatsApp Conversational Chat Agent"
+                          className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 px-2"
+                        >
+                          <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
+                          <span className="hidden xl:inline text-xs">WhatsApp</span>
+                        </Button>
+                      </div>
                     )}
                   </td>
                 </tr>

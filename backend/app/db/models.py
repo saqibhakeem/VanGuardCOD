@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -63,6 +63,31 @@ class ApprovalStatus:
     REJECTED = "REJECTED"
 
 
+class ChannelChoice:
+    TWILIO = "TWILIO"
+    WHATSAPP = "WHATSAPP"
+    BOTH = "BOTH"
+    ALL = (TWILIO, WHATSAPP, BOTH)
+
+
+class WhatsAppProvider:
+    META = "META"
+    TWILIO = "TWILIO"
+    ALL = (META, TWILIO)
+
+
+class OmnichannelStrategy:
+    WHATSAPP_FIRST = "WHATSAPP_FIRST"
+    VOICE_FIRST = "VOICE_FIRST"
+    ALL = (WHATSAPP_FIRST, VOICE_FIRST)
+
+
+class VerificationChannel:
+    VOICE = "VOICE"
+    WHATSAPP = "WHATSAPP"
+    MANUAL = "MANUAL"
+
+
 class Tenant(Base):
     __tablename__ = "tenants"
 
@@ -72,6 +97,24 @@ class Tenant(Base):
     default_language: Mapped[str] = mapped_column(String(10), default="en", nullable=False)
     voice_persona: Mapped[str] = mapped_column(String(32), default="troy", nullable=False)
     max_auto_approve_cod: Mapped[float] = mapped_column(Float, default=25000.0, nullable=False)
+    channel_choice: Mapped[str] = mapped_column(
+        String(32), default=ChannelChoice.BOTH, nullable=False
+    )
+    twilio_account_sid: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    twilio_auth_token: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    twilio_from_number: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    whatsapp_provider: Mapped[str] = mapped_column(
+        String(32), default=WhatsAppProvider.META, nullable=False
+    )
+    whatsapp_phone_number_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    whatsapp_access_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    whatsapp_waba_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    whatsapp_verify_token: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    omnichannel_strategy: Mapped[str] = mapped_column(
+        String(32), default=OmnichannelStrategy.WHATSAPP_FIRST, nullable=False
+    )
+    is_twilio_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_whatsapp_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )
@@ -104,6 +147,9 @@ class Order(Base):
     max_call_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     next_retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_call_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    verification_channel: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    provider_reference_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    delivery_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, nullable=False
     )
@@ -124,6 +170,8 @@ class CallSession(Base):
         String(36), ForeignKey("orders.id"), index=True, nullable=False
     )
     direction: Mapped[str] = mapped_column(String(24), nullable=False)
+    channel: Mapped[str] = mapped_column(String(32), default="VOICE", nullable=False)
+    provider_call_sid: Mapped[str | None] = mapped_column(String(128), nullable=True)
     status: Mapped[str] = mapped_column(String(24), nullable=False, default=CallStatus.ACTIVE)
     avg_turn_latency_ms: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     transcript: Mapped[list[dict[str, Any]]] = mapped_column(

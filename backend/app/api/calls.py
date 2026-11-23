@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Header, HTTPException, Query, Request, status
 from sqlalchemy import select
+
+logger = logging.getLogger(__name__)
 
 from app.api.deps import DbDep, TenantDep, build_ws_url
 from app.config import get_settings
@@ -47,6 +50,8 @@ def _trigger_payload(
         status=session.status,
         order=OrderOut.from_order(order),
         store_name=store_name,
+        channel=getattr(session, "channel", "VOICE"),
+        provider_reference_id=getattr(session, "provider_call_sid", None) or getattr(order, "provider_reference_id", None),
     )
 
 
@@ -60,6 +65,7 @@ async def trigger_outbound_call(
     request: Request,
     db: DbDep,
     tenant: TenantDep,
+    channel: str | None = Query(default=None),
 ) -> CallTriggerResponse:
     order = await db.scalar(
         select(Order).where(Order.id == order_id, Order.tenant_id == tenant.id)
@@ -69,12 +75,23 @@ async def trigger_outbound_call(
             status_code=status.HTTP_404_NOT_FOUND, detail="order not found"
         )
 
+    # If specifically requesting WhatsApp or tenant is configured strictly for WhatsApp only
+    active_channel = channel.upper() if channel else None
+    if active_channel == "WHATSAPP" or (active_channel is None and tenant.channel_choice == "WHATSAPP"):
+        from app.services.whatsapp_agent import initiate_whatsapp_verification
+        res = await initiate_whatsapp_verification(order_id=order.id, tenant_id=tenant.id)
+        session = await db.scalar(select(CallSession).where(CallSession.id == res["session_id"]))
+        await db.refresh(order)
+        return _trigger_payload(request, session, order, store_name=tenant.name)
+
+    # Otherwise Voice verification (Twilio Voice or Softphone)
     existing = await db.scalar(
         select(CallSession)
         .where(
             CallSession.tenant_id == tenant.id,
             CallSession.order_id == order.id,
             CallSession.direction == CallDirection.OUTBOUND_VERIFY,
+            CallSession.channel == "VOICE",
             CallSession.status == CallStatus.ACTIVE,
         )
         .order_by(CallSession.created_at.desc())
@@ -87,6 +104,7 @@ async def trigger_outbound_call(
         tenant_id=tenant.id,
         order_id=order.id,
         direction=CallDirection.OUTBOUND_VERIFY,
+        channel="VOICE",
         status=CallStatus.ACTIVE,
         transcript=[],
         tool_traces=[],
@@ -94,9 +112,46 @@ async def trigger_outbound_call(
     db.add(session)
     if order.status in (OrderStatus.PENDING_CALL, OrderStatus.PENDING_RETRY):
         order.status = OrderStatus.CALLING
+    order.verification_channel = "VOICE"
     await db.commit()
     await db.refresh(session)
     await db.refresh(order)
+
+    # If tenant has Twilio configured, place Twilio call
+    if tenant.twilio_account_sid:
+        from app.services.omnichannel import dispatch_twilio_voice_call
+        try:
+            await dispatch_twilio_voice_call(order=order, tenant=tenant, request=request)
+            await db.refresh(session)
+            await db.refresh(order)
+        except Exception as tw_err:
+            logger.warning("Twilio voice outbound trigger note: %s", tw_err)
+
+    return _trigger_payload(request, session, order, store_name=tenant.name)
+
+
+@router.post(
+    "/dispatch-verification/{order_id}",
+    response_model=CallTriggerResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def dispatch_verification_channel(
+    order_id: str,
+    request: Request,
+    db: DbDep,
+    tenant: TenantDep,
+    channel: str | None = Query(default=None),
+) -> CallTriggerResponse:
+    """Omnichannel dispatch: dynamically routes between Twilio Voice and WhatsApp Chat Agent."""
+    from app.services.omnichannel import dispatch_order_verification
+    res = await dispatch_order_verification(
+        order_id=order_id,
+        tenant_id=tenant.id,
+        request=request,
+        preferred_channel=channel.upper() if channel else None,
+    )
+    session = await db.scalar(select(CallSession).where(CallSession.id == res["session_id"]))
+    order = await db.scalar(select(Order).where(Order.id == order_id))
     return _trigger_payload(request, session, order, store_name=tenant.name)
 
 

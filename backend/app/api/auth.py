@@ -149,6 +149,15 @@ async def register_store(
         default_language=payload.default_language,
         voice_persona=payload.voice_persona,
         max_auto_approve_cod=payload.max_auto_approve_cod,
+        channel_choice=payload.channel_choice,
+        twilio_account_sid=payload.twilio_account_sid,
+        twilio_auth_token=payload.twilio_auth_token,
+        twilio_from_number=payload.twilio_from_number,
+        whatsapp_provider=payload.whatsapp_provider,
+        whatsapp_phone_number_id=payload.whatsapp_phone_number_id,
+        whatsapp_access_token=payload.whatsapp_access_token,
+        whatsapp_waba_id=payload.whatsapp_waba_id,
+        omnichannel_strategy=payload.omnichannel_strategy,
     )
     db.add(tenant)
     await db.commit()

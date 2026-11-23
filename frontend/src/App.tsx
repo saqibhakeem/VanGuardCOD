@@ -179,14 +179,15 @@ export default function App() {
     (approval) => approval.status === "PENDING",
   ).length;
 
-  const handleTrigger = async (order: Order) => {
+  const handleTrigger = async (order: Order, channel?: string) => {
     setSelectedOrderId(order.id);
     setTriggeringOrderId(order.id);
     try {
-      await api.triggerOutbound(order.id);
+      const res = await api.dispatchVerification(order.id, channel);
+      const chLabel = res.channel === "WHATSAPP" ? "WhatsApp Conversational Agent" : "Twilio Outbound Voice Call";
       setToast({
         kind: "ok",
-        text: `AI verification call dispatched for Order ${order.external_order_id}. Dialing customer in Phone Simulator...`,
+        text: `AI verification dispatched via ${chLabel} for Order ${order.external_order_id}.`,
       });
       void refresh(false);
     } catch (error) {
@@ -196,14 +197,15 @@ export default function App() {
     }
   };
 
-  const handleRetry = async (order: Order) => {
+  const handleRetry = async (order: Order, channel?: string) => {
     setSelectedOrderId(order.id);
     setTriggeringOrderId(order.id);
     try {
-      await api.retryOrder(order.id);
+      const res = await api.dispatchVerification(order.id, channel);
+      const chLabel = res.channel === "WHATSAPP" ? "WhatsApp Conversational Agent" : "Twilio Outbound Voice Call";
       setToast({
         kind: "ok",
-        text: `Retry verification call triggered immediately for Order ${order.external_order_id}. Dialing customer in Phone Simulator...`,
+        text: `Retry verification dispatched via ${chLabel} for Order ${order.external_order_id}.`,
       });
       void refresh(false);
     } catch (error) {
@@ -323,7 +325,7 @@ export default function App() {
                   Cash-on-Delivery Order Verification Queue
                 </h2>
                 <p className="text-xs text-slate-300 max-w-2xl mt-1 leading-relaxed">
-                  Real-time incoming COD orders from your store. Click <strong>&quot;Call Customer&quot;</strong> on any order to trigger an autonomous AI verification call. The customer handset simulator will ring.
+                  Real-time incoming COD orders from your store. Orders are automatically verified via your configured channels (WhatsApp Conversational Agent or Twilio Voice Calling).
                 </p>
               </div>
 
@@ -350,8 +352,8 @@ export default function App() {
               triggeringOrderId={triggeringOrderId}
               callActive={false}
               onSelect={(order) => setSelectedOrderId(order.id)}
-              onTrigger={(order) => void handleTrigger(order)}
-              onRetry={(order) => void handleRetry(order)}
+              onTrigger={(order, channel) => void handleTrigger(order, channel)}
+              onRetry={(order, channel) => void handleRetry(order, channel)}
               onDispatchRetries={() => void handleDispatchRetries()}
               dispatchingRetries={dispatchingRetries}
               onRefresh={() => void refresh(false)}

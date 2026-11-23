@@ -173,4 +173,31 @@ export const api = {
     if (role) headers["X-User-Role"] = role;
     return request<import("./types").User>("/auth/me", { headers });
   },
+
+  getChannelConfig: () =>
+    request<import("./types").ChannelConfig>("/channels/config"),
+
+  updateChannelConfig: (data: import("./types").ChannelConfigRequest) =>
+    request<import("./types").ChannelConfig>("/channels/config", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  testTwilio: (data: import("./types").TestTwilioRequest) =>
+    request<import("./types").TestTwilioResponse>("/channels/test-twilio", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  testWhatsApp: (data: import("./types").TestWhatsAppRequest) =>
+    request<import("./types").TestWhatsAppResponse>("/channels/test-whatsapp", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
+  dispatchVerification: (orderId: string, channel?: string) =>
+    request<import("./types").CallTrigger>(
+      `/calls/dispatch-verification/${orderId}${channel ? `?channel=${encodeURIComponent(channel)}` : ""}`,
+      { method: "POST" },
+    ),
 };

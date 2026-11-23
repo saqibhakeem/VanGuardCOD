@@ -67,6 +67,9 @@ class OrderOut(BaseModel):
     max_call_attempts: int = 3
     next_retry_at: datetime | None = None
     last_call_at: datetime | None = None
+    verification_channel: str | None = None
+    provider_reference_id: str | None = None
+    delivery_status: str | None = None
     created_at: datetime
 
     @field_validator("created_at", "next_retry_at", "last_call_at", mode="before")
@@ -87,6 +90,97 @@ class TenantOut(BaseModel):
     default_language: str
     voice_persona: str
     max_auto_approve_cod: float
+    channel_choice: str = "BOTH"
+    twilio_account_sid: str | None = None
+    twilio_from_number: str | None = None
+    whatsapp_provider: str = "META"
+    whatsapp_phone_number_id: str | None = None
+    whatsapp_waba_id: str | None = None
+    omnichannel_strategy: str = "WHATSAPP_FIRST"
+    is_twilio_verified: bool = False
+    is_whatsapp_verified: bool = False
+    has_twilio_auth_token: bool = False
+    has_whatsapp_access_token: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _extract_token_presence(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "has_twilio_auth_token" not in data:
+                data["has_twilio_auth_token"] = bool(data.get("twilio_auth_token"))
+            if "has_whatsapp_access_token" not in data:
+                data["has_whatsapp_access_token"] = bool(data.get("whatsapp_access_token"))
+            return data
+        # Object attribute extraction
+        has_tw = bool(getattr(data, "twilio_auth_token", None))
+        has_wa = bool(getattr(data, "whatsapp_access_token", None))
+        setattr(data, "has_twilio_auth_token", has_tw)
+        setattr(data, "has_whatsapp_access_token", has_wa)
+        return data
+
+
+class ChannelConfigRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    channel_choice: Literal["TWILIO", "WHATSAPP", "BOTH"] = "BOTH"
+    twilio_account_sid: str | None = Field(default=None, max_length=64)
+    twilio_auth_token: str | None = Field(default=None, max_length=128)
+    twilio_from_number: str | None = Field(default=None, max_length=32)
+    whatsapp_provider: Literal["META", "TWILIO"] = "META"
+    whatsapp_phone_number_id: str | None = Field(default=None, max_length=64)
+    whatsapp_access_token: str | None = Field(default=None, max_length=4000)
+    whatsapp_waba_id: str | None = Field(default=None, max_length=64)
+    whatsapp_verify_token: str | None = Field(default=None, max_length=64)
+    omnichannel_strategy: Literal["WHATSAPP_FIRST", "VOICE_FIRST"] = "WHATSAPP_FIRST"
+
+
+class ChannelConfigOut(BaseModel):
+    channel_choice: str
+    twilio_account_sid: str | None
+    twilio_from_number: str | None
+    has_twilio_auth_token: bool
+    is_twilio_verified: bool
+    whatsapp_provider: str
+    whatsapp_phone_number_id: str | None
+    whatsapp_waba_id: str | None
+    has_whatsapp_access_token: bool
+    is_whatsapp_verified: bool
+    omnichannel_strategy: str
+
+
+class TestTwilioRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    account_sid: str = Field(min_length=10, max_length=64)
+    auth_token: str = Field(min_length=10, max_length=128)
+    from_number: str | None = Field(default=None, max_length=32)
+
+
+class TestTwilioResponse(BaseModel):
+    ok: bool
+    friendly_name: str | None = None
+    account_status: str | None = None
+    error: str | None = None
+
+
+class TestWhatsAppRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    provider: Literal["META", "TWILIO"] = "META"
+    phone_number_id: str | None = Field(default=None, max_length=64)
+    access_token: str | None = Field(default=None, max_length=4000)
+    waba_id: str | None = Field(default=None, max_length=64)
+    twilio_account_sid: str | None = Field(default=None, max_length=64)
+    twilio_auth_token: str | None = Field(default=None, max_length=128)
+    twilio_whatsapp_from: str | None = Field(default=None, max_length=32)
+
+
+class TestWhatsAppResponse(BaseModel):
+    ok: bool
+    display_phone_number: str | None = None
+    verified_name: str | None = None
+    quality_rating: str | None = None
+    error: str | None = None
 
 
 class RuntimeConfigOut(BaseModel):
@@ -159,6 +253,8 @@ class CallTriggerResponse(BaseModel):
     status: str
     order: OrderOut
     store_name: str | None = None
+    channel: str = "VOICE"
+    provider_reference_id: str | None = None
 
 
 class CallDeclineResponse(BaseModel):
@@ -304,6 +400,15 @@ class RegisterStoreRequest(BaseModel):
     voice_persona: str = Field(default="troy", max_length=32)
     max_auto_approve_cod: float = Field(default=25000.0, ge=0.0)
     contact_phone: str | None = Field(default=None, max_length=32)
+    channel_choice: Literal["TWILIO", "WHATSAPP", "BOTH"] = "BOTH"
+    twilio_account_sid: str | None = Field(default=None, max_length=64)
+    twilio_auth_token: str | None = Field(default=None, max_length=128)
+    twilio_from_number: str | None = Field(default=None, max_length=32)
+    whatsapp_provider: Literal["META", "TWILIO"] = "META"
+    whatsapp_phone_number_id: str | None = Field(default=None, max_length=64)
+    whatsapp_access_token: str | None = Field(default=None, max_length=4000)
+    whatsapp_waba_id: str | None = Field(default=None, max_length=64)
+    omnichannel_strategy: Literal["WHATSAPP_FIRST", "VOICE_FIRST"] = "WHATSAPP_FIRST"
 
 
 class RegisterStoreResponse(BaseModel):

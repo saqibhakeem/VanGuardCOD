@@ -16,6 +16,71 @@ export type CallerRole = "customer" | "rider";
 
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED";
 
+export type ChannelChoice = "TWILIO" | "WHATSAPP" | "BOTH";
+export type WhatsAppProvider = "META" | "TWILIO";
+export type OmnichannelStrategy = "WHATSAPP_FIRST" | "VOICE_FIRST";
+export type VerificationChannel = "PHONE_CALL" | "WHATSAPP" | "OMNICHANNEL";
+
+export interface ChannelConfig {
+  channel_choice: ChannelChoice;
+  twilio_account_sid?: string | null;
+  twilio_auth_token?: string | null;
+  twilio_from_number?: string | null;
+  whatsapp_provider?: WhatsAppProvider;
+  whatsapp_phone_number_id?: string | null;
+  whatsapp_access_token?: string | null;
+  whatsapp_waba_id?: string | null;
+  whatsapp_verify_token?: string | null;
+  omnichannel_strategy?: OmnichannelStrategy;
+  is_twilio_verified: boolean;
+  is_whatsapp_verified: boolean;
+  active_channels: string[];
+}
+
+export interface ChannelConfigRequest {
+  channel_choice: ChannelChoice;
+  twilio_account_sid?: string | null;
+  twilio_auth_token?: string | null;
+  twilio_from_number?: string | null;
+  whatsapp_provider?: WhatsAppProvider;
+  whatsapp_phone_number_id?: string | null;
+  whatsapp_access_token?: string | null;
+  whatsapp_waba_id?: string | null;
+  whatsapp_verify_token?: string | null;
+  omnichannel_strategy?: OmnichannelStrategy;
+}
+
+export interface TestTwilioRequest {
+  account_sid: string;
+  auth_token: string;
+  from_number: string;
+}
+
+export interface TestTwilioResponse {
+  valid: boolean;
+  message: string;
+  friendly_name?: string | null;
+  status?: string | null;
+}
+
+export interface TestWhatsAppRequest {
+  provider: WhatsAppProvider;
+  phone_number_id?: string | null;
+  access_token?: string | null;
+  waba_id?: string | null;
+  twilio_account_sid?: string | null;
+  twilio_auth_token?: string | null;
+  twilio_from_number?: string | null;
+}
+
+export interface TestWhatsAppResponse {
+  valid: boolean;
+  message: string;
+  verified_name?: string | null;
+  display_phone_number?: string | null;
+  quality_rating?: string | null;
+}
+
 export type ViewKey =
   | "operations"
   | "sessions"
@@ -47,6 +112,16 @@ export interface RegisterStorePayload {
   voice_persona?: string;
   max_auto_approve_cod?: number;
   contact_phone?: string | null;
+  channel_choice?: ChannelChoice;
+  twilio_account_sid?: string | null;
+  twilio_auth_token?: string | null;
+  twilio_from_number?: string | null;
+  whatsapp_provider?: WhatsAppProvider;
+  whatsapp_phone_number_id?: string | null;
+  whatsapp_access_token?: string | null;
+  whatsapp_waba_id?: string | null;
+  whatsapp_verify_token?: string | null;
+  omnichannel_strategy?: OmnichannelStrategy;
 }
 
 export interface RegisterStoreResponse {
@@ -72,6 +147,9 @@ export interface Order {
   delivery_window: string | null;
   rto_risk_score: number;
   status: OrderStatus;
+  verification_channel?: VerificationChannel | null;
+  provider_reference_id?: string | null;
+  delivery_status?: string | null;
   call_attempts?: number;
   max_call_attempts?: number;
   next_retry_at?: string | null;
@@ -108,6 +186,9 @@ export interface CallTrigger {
   status: CallStatus;
   order: Order;
   store_name?: string | null;
+  channel?: VerificationChannel | null;
+  provider_call_sid?: string | null;
+  message?: string | null;
 }
 
 export interface Approval {
@@ -142,6 +223,14 @@ export interface TenantProfile {
   default_language: string;
   voice_persona: string;
   max_auto_approve_cod: number;
+  channel_choice?: ChannelChoice;
+  twilio_account_sid?: string | null;
+  twilio_from_number?: string | null;
+  whatsapp_provider?: WhatsAppProvider;
+  whatsapp_phone_number_id?: string | null;
+  omnichannel_strategy?: OmnichannelStrategy;
+  is_twilio_verified?: boolean;
+  is_whatsapp_verified?: boolean;
 }
 
 export interface RuntimeConfig {

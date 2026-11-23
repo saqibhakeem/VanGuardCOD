@@ -93,9 +93,11 @@ async def init_db(*, seed: bool = True, reset: bool = False) -> None:
             await connection.run_sync(Base.metadata.drop_all)
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
-        # Ensure new retry columns exist on orders table in SQLite
+        # Ensure new schema columns exist in SQLite if table already exists
         try:
             from sqlalchemy import text
+
+            # 1. Orders table
             res = await connection.execute(text("PRAGMA table_info(orders)"))
             cols = {row[1] for row in res.fetchall()}
             if cols:
@@ -107,6 +109,50 @@ async def init_db(*, seed: bool = True, reset: bool = False) -> None:
                     await connection.execute(text("ALTER TABLE orders ADD COLUMN next_retry_at DATETIME"))
                 if "last_call_at" not in cols:
                     await connection.execute(text("ALTER TABLE orders ADD COLUMN last_call_at DATETIME"))
+                if "verification_channel" not in cols:
+                    await connection.execute(text("ALTER TABLE orders ADD COLUMN verification_channel VARCHAR(32)"))
+                if "provider_reference_id" not in cols:
+                    await connection.execute(text("ALTER TABLE orders ADD COLUMN provider_reference_id VARCHAR(128)"))
+                if "delivery_status" not in cols:
+                    await connection.execute(text("ALTER TABLE orders ADD COLUMN delivery_status VARCHAR(32)"))
+
+            # 2. Tenants table
+            res_t = await connection.execute(text("PRAGMA table_info(tenants)"))
+            cols_t = {row[1] for row in res_t.fetchall()}
+            if cols_t:
+                if "channel_choice" not in cols_t:
+                    await connection.execute(text("ALTER TABLE tenants ADD COLUMN channel_choice VARCHAR(32) NOT NULL DEFAULT 'BOTH'"))
+                if "twilio_account_sid" not in cols_t:
+                    await connection.execute(text("ALTER TABLE tenants ADD COLUMN twilio_account_sid VARCHAR(64)"))
+                if "twilio_auth_token" not in cols_t:
+                    await connection.execute(text("ALTER TABLE tenants ADD COLUMN twilio_auth_token VARCHAR(128)"))
+                if "twilio_from_number" not in cols_t:
+                    await connection.execute(text("ALTER TABLE tenants ADD COLUMN twilio_from_number VARCHAR(32)"))
+                if "whatsapp_provider" not in cols_t:
+                    await connection.execute(text("ALTER TABLE tenants ADD COLUMN whatsapp_provider VARCHAR(32) NOT NULL DEFAULT 'META'"))
+                if "whatsapp_phone_number_id" not in cols_t:
+                    await connection.execute(text("ALTER TABLE tenants ADD COLUMN whatsapp_phone_number_id VARCHAR(64)"))
+                if "whatsapp_access_token" not in cols_t:
+                    await connection.execute(text("ALTER TABLE tenants ADD COLUMN whatsapp_access_token TEXT"))
+                if "whatsapp_waba_id" not in cols_t:
+                    await connection.execute(text("ALTER TABLE tenants ADD COLUMN whatsapp_waba_id VARCHAR(64)"))
+                if "whatsapp_verify_token" not in cols_t:
+                    await connection.execute(text("ALTER TABLE tenants ADD COLUMN whatsapp_verify_token VARCHAR(64)"))
+                if "omnichannel_strategy" not in cols_t:
+                    await connection.execute(text("ALTER TABLE tenants ADD COLUMN omnichannel_strategy VARCHAR(32) NOT NULL DEFAULT 'WHATSAPP_FIRST'"))
+                if "is_twilio_verified" not in cols_t:
+                    await connection.execute(text("ALTER TABLE tenants ADD COLUMN is_twilio_verified BOOLEAN NOT NULL DEFAULT 0"))
+                if "is_whatsapp_verified" not in cols_t:
+                    await connection.execute(text("ALTER TABLE tenants ADD COLUMN is_whatsapp_verified BOOLEAN NOT NULL DEFAULT 0"))
+
+            # 3. Call Sessions table
+            res_s = await connection.execute(text("PRAGMA table_info(call_sessions)"))
+            cols_s = {row[1] for row in res_s.fetchall()}
+            if cols_s:
+                if "channel" not in cols_s:
+                    await connection.execute(text("ALTER TABLE call_sessions ADD COLUMN channel VARCHAR(32) NOT NULL DEFAULT 'VOICE'"))
+                if "provider_call_sid" not in cols_s:
+                    await connection.execute(text("ALTER TABLE call_sessions ADD COLUMN provider_call_sid VARCHAR(128)"))
         except Exception:
             pass
 

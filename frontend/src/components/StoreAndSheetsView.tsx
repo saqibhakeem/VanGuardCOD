@@ -60,11 +60,11 @@ export function StoreAndSheetsView({ orders, onOrderCreated, onRefresh }: Props)
       });
 
       setSubmitSuccess(
-        `Order ${res.order.external_order_id} placed! Autonomous call session queued. The customer phone is now ringing!`,
+        `Order ${res.order.external_order_id} placed! Autonomous verification queued for customer channels.`,
       );
       onOrderCreated(res);
-      // Auto trigger call immediately
-      await api.triggerOutbound(res.order.id);
+      // Auto trigger verification immediately via configured channel
+      await api.dispatchVerification(res.order.id);
       onRefresh();
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Failed to place order.");
