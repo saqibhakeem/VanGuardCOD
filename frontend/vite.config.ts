@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-const backend = "http://127.0.0.1:8100";
+const backend = "https://consult-amicably-studied.ngrok-free.dev";
 
 export default defineConfig(({ mode }) => ({
   base: mode === "production" ? "/console/" : "/",
