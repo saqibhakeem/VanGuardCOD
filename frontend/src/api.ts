@@ -59,6 +59,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (init?.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
+  headers.set("ngrok-skip-browser-warning", "true");
 
   const response = await fetch(`${API_PREFIX}${path}`, { ...init, headers });
   if (!response.ok) {
@@ -72,6 +73,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(message, response.status);
   }
   if (response.status === 204) return undefined as T;
+
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    const raw = await response.text();
+    throw new ApiError(
+      `Received non-JSON response from server (${response.status}): ${raw.slice(0, 100)}`,
+      response.status
+    );
+  }
+
   return (await response.json()) as T;
 }
 
