@@ -1,29 +1,26 @@
-# VanguardCOD - Autonomous Voice AI for E-Commerce Cash-on-Delivery (COD)
+# VanguardCOD - Autonomous Voice & WhatsApp AI for E-Commerce Cash-on-Delivery (COD)
 
-VanguardCOD is a multi-tenant B2B SaaS platform engineered for e-commerce brands in cash-on-delivery markets (Pakistan, MENA, South Asia). It replaces manual call center order confirmation agents with autonomous, ultra-low latency voice AI that calls customers upon order placement, verifies addresses, checks delivery availability, flags Return-to-Origin (RTO) risks, and updates order states in real time.
+VanguardCOD is a multi-tenant B2B SaaS platform engineered for e-commerce brands in cash-on-delivery markets (Pakistan, MENA, South Asia). It replaces manual call center order confirmation agents with autonomous, ultra-low latency voice and WhatsApp conversational AI that verifies customer orders, negotiates delivery landmarks, handles address reroutes, flags Return-to-Origin (RTO) risks, and updates order states in real time.
 
 ---
 
 ## Architecture Overview
 
-The system is structured as three decoupled components:
+VanguardCOD is structured as two high-performance decoupled components with Bring-Your-Own-Key (BYOK) provider integrations:
 
 1. **Backend Engine (`backend/`)**:
-   - High-throughput asynchronous FastAPI engine built natively with `asyncio`, Pydantic v2, and SQLAlchemy 2.0 (SQLite for local dev, PostgreSQL for production).
+   - High-throughput asynchronous FastAPI engine built with `asyncio`, Pydantic v2, and SQLAlchemy 2.0 (SQLite for local dev, PostgreSQL for production).
    - Autonomous Voice AI pipeline powered by Groq (`whisper-large-v3-turbo` for STT, `llama-3.3-70b-versatile` for reasoning, and `canopylabs/orpheus-v1-english` for TTS).
-   - Bi-directional 16 kHz PCM audio WebSocket telephony bridge with RMS Voice Activity Detection (VAD) and sub-second barge-in support.
+   - Real **Twilio Voice Telephony** bridge supporting dynamic TwiML and bi-directional WebSocket Media Streams with 8 kHz $\mu$-law $\leftrightarrow$ 16 kHz PCM16 transcoding.
+   - Real **WhatsApp Conversational Chat Agent** driven by Meta WhatsApp Cloud API (v19.0) and Twilio WhatsApp for multi-turn natural language verification.
+   - Smart **Omnichannel Verification Dispatcher** (`WHATSAPP_FIRST` or `VOICE_FIRST` with automated fallback).
    - Deterministic Human-in-the-Loop (HITL) approval gate for high-risk order modifications and address rerouting.
 
 2. **Merchant SaaS Portal (`frontend/`)**:
    - Modern, sleek B2B E-Commerce dashboard (Linear / Stripe inspired).
-   - Store onboarding and self-serve business registration generating store API keys (`vcod_...`) and webhook URLs.
-   - Live Order Queue with RTO risk meters, one-click manual call triggers, call session analytics, manager HITL approval inbox, and store integration settings.
-
-3. **Customer Phone Simulator (`phone-simulator/`)**:
-   - Completely separate standalone application simulating an end-customer smartphone.
-   - Background listener that polls for incoming verification calls.
-   - Synthesizes authentic dual-tone phone ringing via WebAudio API.
-   - Live in-call interface with dual audio waveforms, microphone streaming, conversational bubbles, quick customer voice replies, and real-time AI latency breakdown.
+   - Self-serve business onboarding with live communication channel selection (`WHATSAPP`, `TWILIO`, or `BOTH`).
+   - BYOK provider credentials management with real-time connection verification.
+   - Live Order Queue with RTO risk meters, channel status badges, one-click manual verification dispatchers, call session analytics, manager HITL approval drawer, and store integration settings.
 
 ---
 
@@ -40,7 +37,7 @@ The system is structured as three decoupled components:
 
 ```powershell
 cd backend
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8100
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8100 --reload
 ```
 - API Base URL: `http://127.0.0.1:8100/api/v1`
 - Swagger / OpenAPI Docs: `http://127.0.0.1:8100/docs`
@@ -48,84 +45,54 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8100
 
 ---
 
-### Step 2: Run in Development Mode (Recommended for testing)
+### Step 2: Start the Merchant SaaS Portal
 
-Open two separate terminals:
-
-**Terminal A - Merchant SaaS Portal:**
+In a second terminal:
 ```powershell
 cd frontend
 npm.cmd run dev
 ```
 Accessible at: `http://localhost:5173/`
 
-**Terminal B - Customer Phone Simulator:**
-```powershell
-cd phone-simulator
-npm.cmd run dev
-```
-Accessible at: `http://localhost:5174/`
-
 ---
 
-### Step 3: Run via Single Production Build (Zero Node.js runtime)
+### Step 3: Run via Single Production Build (Optional)
 
-Both frontends can be built into static distribution bundles and served directly by the FastAPI backend:
+The frontend can be compiled into a static distribution bundle and served directly by the FastAPI backend at `/console/`:
 
 ```powershell
-# Build both frontends
-cd phone-simulator; npm.cmd run build
-cd ../frontend; npm.cmd run build
+# Build frontend
+cd frontend; npm.cmd run build
 
 # Start backend
 cd ../backend; python -m uvicorn app.main:app --host 127.0.0.1 --port 8100
 ```
-
 - Merchant SaaS Console: `http://127.0.0.1:8100/console/`
-- Customer Phone Simulator: `http://127.0.0.1:8100/phone/`
 
 ---
 
-## How to Test the Verification Call Workflow
+## How to Test the SaaS Verification Workflow
 
-1. **Open the Customer Phone Simulator** in one browser window or screen:
-   - Go to `http://localhost:5174/` (or `http://127.0.0.1:8100/phone/`).
-   - The phone sits idle waiting for incoming calls.
+### 1. Register a Store & Choose Communication Channels
+1. Open `http://localhost:5173/` and click **Register New Store / Brand**.
+2. Enter your business name, administrator username, and password.
+3. Under **Choose Verification Channel(s)**, select:
+   - **WhatsApp Chat Agent**: Multi-turn conversational chat on WhatsApp.
+   - **Twilio Phone Call**: Autonomous outbound voice AI calls.
+   - **Both (Omnichannel)**: Smart hybrid routing with automatic fallback.
+4. Input your provider credentials (or use mock mode) and click **Test Connection** for live validation.
+5. Complete registration to receive your store API key (`vcod_...`) and webhook ingestion URL.
 
-2. **Open the Merchant SaaS Portal** in another window:
-   - Go to `http://localhost:5173/` (or `http://127.0.0.1:8100/console/`).
-   - Sign in using a demo account (e.g., Click **Store Owner & Administrator**) or register a new store.
-
-3. **Trigger an Outbound Verification Call**:
-   - In the **Orders Queue**, find an unverified order (status `PENDING_CALL`).
-   - Click the **"Call Customer"** button.
-
-4. **Watch the Customer Phone Ring**:
-   - The Customer Phone Simulator will immediately ring with animated phone ringer chime.
-   - Click the green **Answer** button.
-
-5. **Interact with the AI Voice Agent**:
-   - The AI agent greets the customer and confirms the order details.
-   - You can speak directly into your microphone, or click quick reply buttons (e.g., *"Yes, please confirm and deliver tomorrow evening"*).
-   - Interrupt the agent at any time by speaking or clicking **Barge In**.
-   - Watch the live dual waveform and real-time sub-second latency breakdown.
-
-6. **Order Verification & Status Update**:
-   - Once the customer confirms, the AI calls the `confirm_cod_order` tool.
-   - Switch back to the Merchant SaaS Portal: the order status updates to **VERIFIED** automatically.
+### 2. Verify Incoming Orders
+1. In the **Operations** tab, view incoming COD orders.
+2. Click **Verify Call** to trigger an autonomous Twilio voice call.
+3. Click **WhatsApp** to initiate a multi-turn WhatsApp chat session.
+4. The customer receives the verification message or phone call, confirms their order, and provides their landmark.
+5. The order status updates automatically to **VERIFIED** with the verified landmark saved in real time.
 
 ---
 
 ## Store Onboarding & API Integration
-
-### Registering a New Store
-1. On the login screen, click **"Register Brand"**.
-2. Enter your Store Name, Administrator Username, and Password.
-3. Configure your Default Language (English / Urdu) and AI Voice Persona (Hannah / Troy / Alex / Evelyn).
-4. The system automatically creates your isolated tenant workspace and issues your store API key:
-   ```
-   vcod_...
-   ```
 
 ### Webhook Ingestion (Shopify, WooCommerce, Custom Forms)
 Whenever a COD order is placed in your store, send a POST request to:
@@ -144,15 +111,15 @@ Content-Type: application/json
   "payment_method": "COD"
 }
 ```
-The system calculates the RTO risk score, schedules an outbound verification call, and rings the customer.
+The system calculates the RTO risk score, schedules autonomous verification via the store's configured channels, and protects your inventory against return-to-origin loss.
 
 ---
 
 ## Running the Automated Test Suite
 
-From the `backend/` directory:
+From the repository root:
 ```powershell
-python -m pytest -q
+pytest backend/tests/
 ```
-Suite status: **61 passed in 9.07s**.
-Tests cover database operations, multi-tenant isolation, RTO risk scoring, autonomous agent runtime, Orpheus TTS chunking, RMS VAD barge-in, WebSocket telephony sessions, and SaaS authentication.
+Suite status: **70 passed in 15.91s (100% pass rate)**.
+Tests cover database operations, multi-tenant isolation, RTO risk scoring, autonomous voice agent runtime, Twilio voice media streams, WhatsApp conversational agent, omnichannel dispatch, and SaaS authentication.
