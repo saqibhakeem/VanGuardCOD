@@ -151,11 +151,22 @@ async def initiate_whatsapp_verification(
                 access_token=tenant.whatsapp_access_token or "mock_token",
                 waba_id=tenant.whatsapp_waba_id,
             )
-            msg_result = await wa.send_text_message(
-                recipient_phone=order.customer_phone,
-                text_body=greeting,
-            )
-            order.provider_reference_id = msg_result.get("message_id")
+            try:
+                msg_result = await wa.send_text_message(
+                    recipient_phone=order.customer_phone,
+                    text_body=greeting,
+                )
+                order.provider_reference_id = msg_result.get("message_id")
+            except Exception as wa_err:
+                logger.warning("Meta text send attempt note: %s. Attempting template fallback...", wa_err)
+                try:
+                    tpl_result = await wa.send_template_message(
+                        recipient_phone=order.customer_phone,
+                        template_name="hello_world",
+                    )
+                    order.provider_reference_id = tpl_result.get("message_id")
+                except Exception:
+                    raise wa_err
 
         await db.commit()
         await db.refresh(session)

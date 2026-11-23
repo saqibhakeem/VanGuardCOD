@@ -82,7 +82,7 @@ class WhatsAppClient:
         # Normalize phone: Meta expects digits without '+' (e.g. 923001234567)
         clean_phone = recipient_phone.replace("+", "").replace("-", "").replace(" ", "").replace("whatsapp:", "")
 
-        if self.is_mock:
+            clean_phone = recipient_phone.replace("+", "").replace("-", "").replace(" ", "").replace("whatsapp:", "")
             msg_id = f"wamid.mock_{abs(hash(clean_phone + text_body[:20])) % 1000000:06d}"
             logger.info("Mock WhatsApp message sent to %s (ID: %s): %s", clean_phone, msg_id, text_body[:70])
             return {
@@ -128,4 +128,48 @@ class WhatsAppClient:
             raise
         except Exception as exc:
             logger.error("WhatsApp message send exception: %s", exc)
+            raise WhatsAppError(f"WhatsApp network error: {exc}")
+
+    async def send_template_message(
+        self,
+        recipient_phone: str,
+        template_name: str = "hello_world",
+        language_code: str = "en_US",
+    ) -> dict[str, Any]:
+        """Send a pre-approved Meta WhatsApp Template message."""
+        clean_phone = recipient_phone.replace("+", "").replace("-", "").replace(" ", "").replace("whatsapp:", "")
+        if self.is_mock:
+            return {"ok": True, "message_id": f"wamid.mock_tpl_{clean_phone}", "recipient": clean_phone}
+
+        url = f"{META_GRAPH_BASE}/{self.phone_number_id}/messages"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "messaging_product": "whatsapp",
+            "to": clean_phone,
+            "type": "template",
+            "template": {
+                "name": template_name,
+                "language": {"code": language_code},
+            },
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=12.0) as client:
+                res = await client.post(url, headers=headers, json=payload)
+                if res.status_code in (200, 201):
+                    data = res.json()
+                    messages = data.get("messages", [])
+                    msg_id = messages[0].get("id") if messages else "sent"
+                    return {"ok": True, "message_id": msg_id, "recipient": clean_phone}
+                data = res.json() if res.headers.get("content-type", "").startswith("application/json") else {}
+                err_obj = data.get("error", {})
+                msg = err_obj.get("message") or f"Meta HTTP {res.status_code}: {res.text[:120]}"
+                raise WhatsAppError(f"Failed to send template message: {msg}", status_code=res.status_code, details=data)
+        except WhatsAppError:
+            raise
+        except Exception as exc:
+            logger.error("WhatsApp template send exception: %s", exc)
             raise WhatsAppError(f"WhatsApp network error: {exc}")

@@ -49,6 +49,22 @@ async def receive_meta_whatsapp_message(request: Request) -> dict[str, str]:
         changes = entry.get("changes", [])
         for change in changes:
             value = change.get("value", {})
+            statuses = value.get("statuses", [])
+            for st in statuses:
+                st_id = st.get("id")
+                st_status = st.get("status")
+                errors = st.get("errors")
+                recipient_id = st.get("recipient_id")
+                logger.info("Meta WhatsApp status update: id=%s recipient=%s status=%s", st_id, recipient_id, st_status)
+                if errors:
+                    for err in errors:
+                        logger.error(
+                            "Meta WhatsApp delivery failure (code %s): %s (%s)",
+                            err.get("code"),
+                            err.get("title"),
+                            err.get("message") or err.get("error_data", {}).get("details"),
+                        )
+
             messages = value.get("messages", [])
             for msg in messages:
                 from_phone = msg.get("from")

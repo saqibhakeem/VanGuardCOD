@@ -80,6 +80,18 @@ def create_app() -> FastAPI:
     async def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    @application.get("/webhook")
+    async def meta_webhook_challenge_root(
+        hub_mode: str = Query(default="", alias="hub.mode"),
+        hub_challenge: str = Query(default="", alias="hub.challenge"),
+        hub_verify_token: str = Query(default="", alias="hub.verify_token"),
+    ) -> Response:
+        return await whatsapp.verify_meta_webhook(hub_mode, hub_challenge, hub_verify_token)
+
+    @application.post("/webhook")
+    async def meta_webhook_receive_root(request: Request) -> dict[str, str]:
+        return await whatsapp.receive_meta_whatsapp_message(request)
+
     @application.get("/softphone", include_in_schema=False)
     async def softphone() -> FileResponse:
         return FileResponse(STATIC_DIR / "softphone.html")
