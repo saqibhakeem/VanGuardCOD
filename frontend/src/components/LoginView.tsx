@@ -34,7 +34,13 @@ interface Props {
 type AuthMode = "login" | "register";
 
 export function LoginView({ onLoginSuccess }: Props) {
-  const [mode, setMode] = useState<AuthMode>("login");
+  const [mode, setMode] = useState<AuthMode>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("mode") === "register" ? "register" : "login";
+    } catch {
+      return "login";
+    }
+  });
 
   // Login form state
   const [username, setUsername] = useState("");
